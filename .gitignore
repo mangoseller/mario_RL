@@ -1,0 +1,6 @@
+/*
+!/src/
+/src/ROM/
+/src/stable-retro/
+/src/*.bk2/
+!.gitignore
