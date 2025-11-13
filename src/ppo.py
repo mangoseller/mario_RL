@@ -20,6 +20,14 @@ class PPO: # TODO: Implement lots of rollout at once, multiple envs
         action_prob = distributions.log_prob(action)
         return action.item(), action_prob.item(), value.squeeze().item() # Return scalars
 
+    def eval_action_selection(self, state):
+        with t.inference_mode():
+            state = state.to(self.device)
+            logits, _ = self.model(state.unsqueeze(0))
+
+        action = t.argmax(logits, dim=-1)
+        return action.item()
+
     def compute_loss(self, states, actions, old_log_probs, advantages, returns):
         # Move params to correct device
         states = states.to(self.device)
@@ -104,7 +112,6 @@ class PPO: # TODO: Implement lots of rollout at once, multiple envs
             returns = returns[permuted_indices]
 
             for start_idx in range(0, len(buffer), minibatch_size):
-
                 end_idx = min(start_idx + minibatch_size, len(buffer))
                 mb_states = states[start_idx:end_idx]
                 mb_actions = actions[start_idx:end_idx]
