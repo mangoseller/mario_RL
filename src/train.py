@@ -7,12 +7,14 @@ from ppo import PPO
 from buffer import RolloutBuffer
 from environment import env, eval_env, evaluate
 
-api_key = os.environ.get("WANDB_API_KEY")
-if api_key is None:
-    raise RuntimeError("WANDB_API_KEY not set in environment")
+USE_WANDB = False
+if USE_WANDB:
+    api_key = os.environ.get("WANDB_API_KEY")
+    if api_key is None:
+        raise RuntimeError("WANDB_API_KEY not set in environment")
 
-wandb.login(key=api_key)
-run = wandb.init(
+    wandb.login(key=api_key)
+    run = wandb.init(
     project="marioRL",
     config={
        "learning_rate": 1e-4, # TODO: add learning rate scheduling
@@ -26,14 +28,14 @@ run = wandb.init(
        "epochs": 4,
        "buffer_size": 4096,
        "minibatch_size": 64,
- },
-)
+    },
+    )
 
-assert t.cuda.is_available(), "GPU is not available!"
-device = 'cuda'
-# device = 'cpu'
+# assert t.cuda.is_available(), "GPU is not available!"
+# device = 'cuda'
+device = 'cpu'
 agent = ImpalaSmall().to(device)
-assert next(agent.parameters()).is_cuda, "Model is not on GPU!"
+# assert next(agent.parameters()).is_cuda, "Model is not on GPU!"
 policy = PPO(
     model=agent,
     lr=1e-4, # TODO: Implement LR Scheduling
@@ -45,14 +47,25 @@ policy = PPO(
 )
 
 # Create buffer, initialize environment and get first state 
-buffer = RolloutBuffer(4096, device)
+# buffer = RolloutBuffer(4096, device)
+# environment = env.reset()
+# state = environment['pixels']
+# num_training_steps = int(1e6) # Change to 20-50M steps when training is set up correctly
+# eval_freq = 250_000
+# last_eval = 0
+# checkpoint_freq = 200_000
+# last_checkpoint = 0
+
+
+# Testing Params:
+buffer = RolloutBuffer(512, device)
 environment = env.reset()
 state = environment['pixels']
-num_training_steps = int(1e6) # Change to 20-50M steps when training is set up correctly
-eval_freq = 250_000
-last_eval = 0
-checkpoint_freq = 200_000
+num_training_steps = 50000
+eval_freq = int(1e14)
+checkpoint_freq = 10000
 last_checkpoint = 0
+last_eval=0
 
 # Initialize tracking variables 
 episode_rewards = []
@@ -64,15 +77,20 @@ episode_num = 0
 
 for step in range(num_training_steps):
     action, log_prob, value = policy.action_selection(state)
+    if step % 50 == 0:
+        print(f"Step {step}: Action={action.item()}, Value={value:.3f}")
 
     # Take a step
-    environment = environment.step(action)
+    environment["action"] = action.unsqueeze(0)
+    environment = env.step(environment)
     next_state = environment["next"]["pixels"]
     reward = environment["next"]["reward"].item()
+    if reward != 0:
+        print(f"Reward at step {step} is: {reward}")
     done = environment["next"]["done"].item()
 
     # Store step data in buffer
-    buffer.store(state, reward, action, log_prob, value, done)
+    buffer.store(state, reward, action.item(), log_prob, value, done)
     episode_reward += reward
     episode_length += 1
 
@@ -101,13 +119,14 @@ for step in range(num_training_steps):
         num_updates += 1
         # Log metrics
         if len(episode_rewards) > 0:
-            wandb.log({
-                "train/mean_reward": np.mean(episode_rewards),
-                "train/mean_length": np.mean(episode_lengths),
-                "train/num_episodes": len(episode_rewards),
-                "global_step": step,
-                "num_updates": num_updates,
-            })
+            if USE_WANDB:
+                wandb.log({
+                    "train/mean_reward": np.mean(episode_rewards),
+                    "train/mean_length": np.mean(episode_lengths),
+                    "train/num_episodes": len(episode_rewards),
+                    "global_step": step,
+                    "num_updates": num_updates,
+                })
             episode_rewards.clear()
             episode_lengths.clear()
         buffer.clear()
@@ -116,12 +135,14 @@ for step in range(num_training_steps):
         if step - last_checkpoint >= checkpoint_freq:
             model_path = f"ImpalaSmall{episode_num}.pt"
             t.save(agent.state_dict(), model_path)
-            artifact = wandb.Artifact(f"marioRLep{episode_num}", type="model")
-            artifact.add_file(model_path)
-            run.log_artifact(artifact)
+            if USE_WANDB:
+                artifact = wandb.Artifact(f"marioRLep{episode_num}", type="model")
+                artifact.add_file(model_path)
+                run.log_artifact(artifact)
             last_checkpoint = step
 
-wandb.finish()
+if USE_WANDB:
+    wandb.finish()
 
 
 

@@ -44,7 +44,8 @@ def evaluate(agent, env, num_episodes=5):
 
         while not done:
             action = agent.eval_action_selection(state)
-            eval_environment = env.step(action)
+            eval_environment["action"] = action
+            eval_environment = env.step(eval_environment)
             state = eval_environment["next"]["pixels"]
             reward = eval_environment["next"]["reward"].item()
             done = eval_environment["next"]["done"].item()
@@ -97,17 +98,17 @@ env = TransformedEnv(base_env, Compose(*[
     StepCounter(),
     RewardSum(),
   ]))
-
-eval_env = retro.make('SuperMarioWorld-Snes', render_mode='rgb_array')
-eval_env = GymWrapper(Discretizer(eval_env, MARIO_ACTIONS))
-eval_env = TransformedEnv(eval_env, Compose(*[
-    FrameSkipTransform(frame_skip=4),
-    ToTensorImage(),
-    Resize(84, 84),
-    GrayScale(),
-    CatFrames(N=4, dim=-3),
-    StepCounter(),
-    RewardSum(),
-]))
+eval_env = env # TODO: Fix this bug, allow multiple envs
+# eval_env = retro.make('SuperMarioWorld-Snes', render_mode='rgb_array')
+# eval_env = GymWrapper(Discretizer(eval_env, MARIO_ACTIONS))
+# eval_env = TransformedEnv(eval_env, Compose(*[
+#     FrameSkipTransform(frame_skip=4),
+#     ToTensorImage(),
+#     Resize(84, 84),
+#     GrayScale(),
+#     CatFrames(N=4, dim=-3),
+#     StepCounter(),
+#     RewardSum(),
+# ]))
 # print(env.action_space) 
 

@@ -1,6 +1,6 @@
 import torch as t 
 from torch.distributions import Categorical
-
+import numpy as np
 class PPO: # TODO: Implement lots of rollout at once, multiple envs
     def __init__(self, model, lr, epsilon, optimizer, device, c1=0.5, c2=0.01):
         self.model = model
@@ -15,10 +15,10 @@ class PPO: # TODO: Implement lots of rollout at once, multiple envs
         with t.inference_mode():
             state = state.to(self.device)
             state_logits, value = self.model(state.unsqueeze(0)) # add batch dim, shape (1, 4, 84, 84)
-        distributions = Categorical(state_logits)
+        distributions = Categorical(logits=state_logits)
         action = distributions.sample()
         action_prob = distributions.log_prob(action)
-        return action.item(), action_prob.item(), value.squeeze().item() # Return scalars
+        return action, action_prob.item(), value.squeeze().item() # Return scalars
 
     def eval_action_selection(self, state):
         with t.inference_mode():
@@ -103,6 +103,7 @@ class PPO: # TODO: Implement lots of rollout at once, multiple envs
         advantages, returns = self.compute_advantages(buffer, next_state=next_state)
         normalized_advantages = (advantages - advantages.mean()) / (advantages.std() + eps)
         states, _, actions, log_probs, _, _ = buffer.get()
+        total_losses = []
         for _ in range(1, num_epochs+1):
             permuted_indices = t.randperm(len(buffer))
             states = states[permuted_indices]
@@ -122,12 +123,14 @@ class PPO: # TODO: Implement lots of rollout at once, multiple envs
             # Compute loss over this batch
                 loss = self.compute_loss(mb_states, mb_actions, mb_log_probs, 
                                          mb_advantages, mb_returns)
+                total_losses.append(loss)
 
                 self.optimizer.zero_grad()
                 loss.backward()
                 # Clip grad norms to prevent exploding gradients
                 t.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                 self.optimizer.step()
+        print(f"Average loss: {np.mean([loss.item() for loss in total_losses])}")
 
         return
 

@@ -1,5 +1,6 @@
 import torch as t
 import torch.nn as nn
+import numpy as np
 
 class ImpalaSmall(nn.Module):
     def __init__(self, num_actions=13):
@@ -31,19 +32,39 @@ class ImpalaSmall(nn.Module):
             self.FC,
             self.activation3
         )
-
         self.policy_head = nn.Linear(256, num_actions)
         self.value_head = nn.Linear(256, 1) 
+        self._initialize_weights()
 
     def forward(self, x):
         x = x / 255 # Normalize pixels
         x = self.feature_extractor(x)
         return self.policy_head(x), self.value_head(x)
 
+    def _initialize_weights(self): # TODO: Generalize this to both models
 
-if __name__ == "__main__":
-    model = ImpalaSmall()
-    test_input = t.randn(1, 4, 84, 84) * 255  # Simulate pixel values
-    policy, value = model(test_input)
-    print(f"Policy shape: {policy.shape}")  # Should be (1, num_actions)
-    print(f"Value shape: {value.shape}")    # Should be (1, 1) - can squeeze this to (1,) if needed
+        """Apply orthogonal intialization to weights with appropiate gain,
+        sqrt(2) for convolutional and FC layers, policy head 0.01,
+        value_head 1.0"""
+
+        for layer in [self.conv1, self.conv2]:
+            nn.init.orthogonal_(layer.weight, gain=np.sqrt(2))
+            if layer.bias is not None:
+                nn.init.constant_(layer.bias, 0)
+
+        nn.init.orthogonal_(self.FC.weight, gain=np.sqrt(2))
+        nn.init.constant_(self.FC.bias, 0)
+
+        nn.init.orthogonal_(self.policy_head.weight, gain=0.01)
+        nn.init.constant_(self.policy_head.bias, 0)
+
+        nn.init.orthogonal_(self.value_head.weight, gain=1.0)
+        nn.init.constant_(self.value_head.bias, 0)
+
+
+# if __name__ == "__main__":
+#     model = ImpalaSmall()
+#     test_input = t.randn(1, 4, 84, 84) * 255  # Simulate pixel values
+#     policy, value = model(test_input)
+#     print(f"Policy shape: {policy.shape}")  # Should be (1, num_actions)
+#     print(f"Value shape: {value.shape}")    # Should be (1, 1) - can squeeze this to (1,) if needed
