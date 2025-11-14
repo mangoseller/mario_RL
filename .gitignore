@@ -6,3 +6,5 @@
 /src/*.bk2/
 /src/evals/
 !.gitignore
+*.pyc
+__pycache__/
