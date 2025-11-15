@@ -9,6 +9,7 @@ class TrainingConfig:
     buffer_size: int
     eval_freq: int
     checkpoint_freq: int
+    show_progress: bool
 
     # PPO Parameters
     learning_rate: float = 1e-4
@@ -62,14 +63,16 @@ TRAINING_CONFIG = TrainingConfig(
     buffer_size=4096,
     eval_freq=250_000,
     checkpoint_freq=200_000,
-    USE_WANDB=True
+    USE_WANDB=True,
+    show_progress=True
 )
 
 TESTING_CONFIG = TrainingConfig(
-    num_envs=2,
+    num_envs=4,
     num_training_steps=100000,
     buffer_size=50,
-    eval_freq=200,
+    eval_freq=200000,
     checkpoint_freq=500,
-    USE_WANDB=False
+    USE_WANDB=True,
+    show_progress=True
 )

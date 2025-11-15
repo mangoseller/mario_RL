@@ -9,3 +9,4 @@
 *.pyc
 __pycache__/
 /src/wandb/
+/src/model_checkpoints/
