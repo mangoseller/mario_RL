@@ -1,0 +1,17 @@
+{
+  "os": "Linux-6.14.0-35-generic-x86_64-with-glibc2.39",
+  "python": "CPython 3.10.19",
+  "startedAt": "2025-11-15T22:59:45.154580Z",
+  "program": "/home/sam/Documents/marioRL_3.10/src/train.py",
+  "codePath": "src/train.py",
+  "codePathLocal": "train.py",
+  "git": {
+    "remote": "git@github.com:mangoseller/mario_RL.git",
+    "commit": "ff5a99f92c3b42863d94cec0472bbb9c543454d9"
+  },
+  "email": "samuelparson122@gmail.com",
+  "root": "/home/sam/Documents/marioRL_3.10/src",
+  "host": "sam-B650M-GAMING-WIFI",
+  "executable": "/home/sam/Documents/marioRL_3.10/venv/bin/python",
+  "writerId": "wmu75uf8t25uj84qz8nb1cujz5d1t1px"
+}

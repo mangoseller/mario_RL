@@ -1,0 +1,7 @@
+Process Process-9:
+Traceback (most recent call last):
+  File "/usr/lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/usr/lib/python3.10/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+TypeError: _run_eval_() missing 2 required positional arguments: 'record_dir' and 'result_queue'

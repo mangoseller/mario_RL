@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/home/sam/Documents/marioRL_3.10/src/train.py", line 172, in <module>
+    train(ImpalaSmall)
+  File "/home/sam/Documents/marioRL_3.10/src/train.py", line 109, in train
+    model = model().to(device)
+  File "/home/sam/Documents/marioRL_3.10/venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1330, in to
+    device, dtype, non_blocking, convert_to_format = torch._C._nn._parse_to(
+RuntimeError: Expected one of cpu, cuda, ipu, xpu, mkldnn, opengl, opencl, ideep, hip, ve, fpga, maia, xla, lazy, vulkan, mps, meta, hpu, mtia, privateuseone device type at start of device string: device

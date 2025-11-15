@@ -1,0 +1,56 @@
+_wandb:
+    value:
+        cli_version: 0.23.0
+        e:
+            wmu75uf8t25uj84qz8nb1cujz5d1t1px:
+                codePath: src/train.py
+                codePathLocal: train.py
+                email: samuelparson122@gmail.com
+                executable: /home/sam/Documents/marioRL_3.10/venv/bin/python
+                git:
+                    commit: ff5a99f92c3b42863d94cec0472bbb9c543454d9
+                    remote: git@github.com:mangoseller/mario_RL.git
+                host: sam-B650M-GAMING-WIFI
+                os: Linux-6.14.0-35-generic-x86_64-with-glibc2.39
+                program: /home/sam/Documents/marioRL_3.10/src/train.py
+                python: CPython 3.10.19
+                root: /home/sam/Documents/marioRL_3.10/src
+                startedAt: "2025-11-15T22:59:45.154580Z"
+                writerId: wmu75uf8t25uj84qz8nb1cujz5d1t1px
+        m: []
+        python_version: 3.10.19
+        t:
+            "1":
+                - 1
+                - 105
+            "2":
+                - 1
+                - 105
+            "3":
+                - 16
+            "4": 3.10.19
+            "5": 0.23.0
+            "12": 0.23.0
+            "13": linux-x86_64
+architecture:
+    value: ImpalaSmall
+buffer_size:
+    value: 50
+c1:
+    value: 0.5
+c2:
+    value: 0.01
+clip_eps:
+    value: 0.2
+epochs:
+    value: 4
+epsilon:
+    value: 1e-08
+gamma:
+    value: 0.99
+lambda:
+    value: 0.95
+learning_rate:
+    value: 0.0001
+minibatch_size:
+    value: 64

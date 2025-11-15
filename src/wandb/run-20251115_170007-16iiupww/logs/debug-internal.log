@@ -1,0 +1,14 @@
+{"time":"2025-11-15T17:00:07.618169412+11:00","level":"INFO","msg":"stream: starting","core version":"0.23.0"}
+{"time":"2025-11-15T17:00:07.872159627+11:00","level":"INFO","msg":"stream: created new stream","id":"16iiupww"}
+{"time":"2025-11-15T17:00:07.872206095+11:00","level":"INFO","msg":"handler: started","stream_id":"16iiupww"}
+{"time":"2025-11-15T17:00:07.872268093+11:00","level":"INFO","msg":"stream: started","id":"16iiupww"}
+{"time":"2025-11-15T17:00:07.872275707+11:00","level":"INFO","msg":"writer: started","stream_id":"16iiupww"}
+{"time":"2025-11-15T17:00:07.872280547+11:00","level":"INFO","msg":"sender: started","stream_id":"16iiupww"}
+{"time":"2025-11-15T17:00:38.323314621+11:00","level":"ERROR","msg":"monitor: error sampling metrics: process does not exist"}
+{"time":"2025-11-15T17:00:53.323957376+11:00","level":"ERROR","msg":"monitor: error sampling metrics: process does not exist"}
+{"time":"2025-11-15T17:01:08.323967963+11:00","level":"ERROR","msg":"monitor: error sampling metrics: process does not exist"}
+{"time":"2025-11-15T17:01:22.745683243+11:00","level":"INFO","msg":"stream: closing","id":"16iiupww"}
+{"time":"2025-11-15T17:01:23.564716802+11:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-11-15T17:01:23.889841765+11:00","level":"INFO","msg":"handler: closed","stream_id":"16iiupww"}
+{"time":"2025-11-15T17:01:23.889880128+11:00","level":"INFO","msg":"sender: closed","stream_id":"16iiupww"}
+{"time":"2025-11-15T17:01:23.889894265+11:00","level":"INFO","msg":"stream: closed","id":"16iiupww"}

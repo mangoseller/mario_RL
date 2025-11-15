@@ -1,0 +1,19 @@
+Training on CPU
+Traceback (most recent call last):
+  File "/home/sam/Documents/marioRL_3.10/src/train.py", line 172, in <module>
+    train(ImpalaSmall)
+  File "/home/sam/Documents/marioRL_3.10/src/train.py", line 144, in train
+    run_evaluation(policy, tracking, config, run, num_eval_episodes)
+  File "/home/sam/Documents/marioRL_3.10/src/train.py", line 73, in run_evaluation
+    eval_metrics = eval_parallel_safe(policy, num_episodes=episodes, record_dir=eval_dir)
+  File "/home/sam/Documents/marioRL_3.10/src/environment.py", line 152, in eval_parallel_safe
+    return result_queue.get()
+  File "/usr/lib/python3.10/multiprocessing/queues.py", line 103, in get
+    res = self._recv_bytes()
+  File "/usr/lib/python3.10/multiprocessing/connection.py", line 216, in recv_bytes
+    buf = self._recv_bytes(maxlength)
+  File "/usr/lib/python3.10/multiprocessing/connection.py", line 414, in _recv_bytes
+    buf = self._recv(4)
+  File "/usr/lib/python3.10/multiprocessing/connection.py", line 379, in _recv
+    chunk = read(handle, remaining)
+KeyboardInterrupt

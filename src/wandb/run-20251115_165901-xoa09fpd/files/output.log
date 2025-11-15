@@ -1,0 +1,18 @@
+[34m[1mwandb[0m: Adding directory to artifact (evals/eval_step_200_time_1763186346)... Done. 0.0s
+[34m[1mwandb[0m: Adding directory to artifact (evals/eval_step_400_time_1763186366)... Done. 0.0s
+[34m[1mwandb[0m: Adding directory to artifact (evals/eval_step_600_time_1763186385)... Done. 0.0s
+[34m[1mwandb[0m: Adding directory to artifact (evals/eval_step_800_time_1763186405)... Done. 0.0s
+[34m[1mwandb[0m: Adding directory to artifact (evals/eval_step_1000_time_1763186425)... Done. 0.0s
+[34m[1mwandb[0m: Adding directory to artifact (evals/eval_step_1200_time_1763186446)... Done. 0.0s
+Traceback (most recent call last):
+  File "/home/sam/Documents/marioRL_3.10/src/train.py", line 107, in <module>
+    eval_metrics = eval_parallel_safe(policy, num_episodes=1, record_dir=eval_dir)
+  File "/home/sam/Documents/marioRL_3.10/src/environment.py", line 160, in eval_parallel_safe
+    process.join()
+  File "/usr/lib/python3.10/multiprocessing/process.py", line 149, in join
+    res = self._popen.wait(timeout)
+  File "/usr/lib/python3.10/multiprocessing/popen_fork.py", line 43, in wait
+    return self.poll(os.WNOHANG if timeout == 0.0 else 0)
+  File "/usr/lib/python3.10/multiprocessing/popen_fork.py", line 27, in poll
+    pid, sts = os.waitpid(self.pid, flag)
+KeyboardInterrupt

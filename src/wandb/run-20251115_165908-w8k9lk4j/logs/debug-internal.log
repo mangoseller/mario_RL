@@ -1,0 +1,18 @@
+{"time":"2025-11-15T16:59:08.842830826+11:00","level":"INFO","msg":"stream: starting","core version":"0.23.0"}
+{"time":"2025-11-15T16:59:09.092788205+11:00","level":"INFO","msg":"stream: created new stream","id":"w8k9lk4j"}
+{"time":"2025-11-15T16:59:09.09281716+11:00","level":"INFO","msg":"handler: started","stream_id":"w8k9lk4j"}
+{"time":"2025-11-15T16:59:09.092887443+11:00","level":"INFO","msg":"stream: started","id":"w8k9lk4j"}
+{"time":"2025-11-15T16:59:09.092892814+11:00","level":"INFO","msg":"writer: started","stream_id":"w8k9lk4j"}
+{"time":"2025-11-15T16:59:09.092900388+11:00","level":"INFO","msg":"sender: started","stream_id":"w8k9lk4j"}
+{"time":"2025-11-15T16:59:39.530268447+11:00","level":"ERROR","msg":"monitor: error sampling metrics: process does not exist"}
+{"time":"2025-11-15T16:59:54.53022233+11:00","level":"ERROR","msg":"monitor: error sampling metrics: process does not exist"}
+{"time":"2025-11-15T17:00:09.53047253+11:00","level":"ERROR","msg":"monitor: error sampling metrics: process does not exist"}
+{"time":"2025-11-15T17:00:24.530421251+11:00","level":"ERROR","msg":"monitor: error sampling metrics: process does not exist"}
+{"time":"2025-11-15T17:00:39.53044545+11:00","level":"ERROR","msg":"monitor: error sampling metrics: process does not exist"}
+{"time":"2025-11-15T17:00:54.530229617+11:00","level":"ERROR","msg":"monitor: error sampling metrics: process does not exist"}
+{"time":"2025-11-15T17:01:09.530049079+11:00","level":"ERROR","msg":"monitor: error sampling metrics: process does not exist"}
+{"time":"2025-11-15T17:01:22.745629711+11:00","level":"INFO","msg":"stream: closing","id":"w8k9lk4j"}
+{"time":"2025-11-15T17:01:23.514388723+11:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-11-15T17:01:23.805853035+11:00","level":"INFO","msg":"handler: closed","stream_id":"w8k9lk4j"}
+{"time":"2025-11-15T17:01:23.80589251+11:00","level":"INFO","msg":"sender: closed","stream_id":"w8k9lk4j"}
+{"time":"2025-11-15T17:01:23.805902729+11:00","level":"INFO","msg":"stream: closed","id":"w8k9lk4j"}

@@ -1,0 +1,18 @@
+Process _ProcessNoWarn-3:
+Traceback (most recent call last):
+  File "/usr/lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/home/sam/Documents/marioRL_3.10/venv/lib/python3.10/site-packages/torchrl/_utils.py", line 594, in run
+    return mp.Process.run(self, *args, **kwargs)
+  File "/usr/lib/python3.10/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/home/sam/Documents/marioRL_3.10/venv/lib/python3.10/site-packages/torchrl/envs/batched_envs.py", line 2397, in _run_worker_pipe_shared_mem
+    if child_pipe.poll(_timeout):
+  File "/usr/lib/python3.10/multiprocessing/connection.py", line 257, in poll
+    return self._poll(timeout)
+  File "/usr/lib/python3.10/multiprocessing/connection.py", line 424, in _poll
+    r = wait([self], timeout)
+  File "/usr/lib/python3.10/multiprocessing/connection.py", line 931, in wait
+    ready = selector.select(timeout)
+  File "/usr/lib/python3.10/selectors.py", line 416, in select
+    fd_event_list = self._selector.poll(timeout)

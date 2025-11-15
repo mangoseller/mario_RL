@@ -1,0 +1,12 @@
+Process _ProcessNoWarn-6:
+Traceback (most recent call last):
+  File "/usr/lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/home/sam/Documents/marioRL_3.10/venv/lib/python3.10/site-packages/torchrl/_utils.py", line 594, in run
+    return mp.Process.run(self, *args, **kwargs)
+  File "/usr/lib/python3.10/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/home/sam/Documents/marioRL_3.10/venv/lib/python3.10/site-packages/torchrl/envs/batched_envs.py", line 2397, in _run_worker_pipe_shared_mem
+    if child_pipe.poll(_timeout):
+  File "/usr/lib/python3.10/multiprocessing/connection.py", line 257, in poll
+    return self._poll(timeout)
