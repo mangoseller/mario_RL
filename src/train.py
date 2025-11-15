@@ -6,6 +6,20 @@ warnings.filterwarnings(
         category=UserWarning,
         module="torch.cuda"
 )
+# Suppress numpy scalar conversion warning from torchrl
+warnings.filterwarnings(
+        'ignore',
+        message="Conversion of an array with ndim > 0 to a scalar is deprecated",
+        category=DeprecationWarning,
+        module="torchrl.envs.libs.gym"
+)
+# Suppress video overwriting warning from gymnasium
+warnings.filterwarnings(
+        'ignore',
+        message=".*Overwriting existing videos.*",
+        category=UserWarning,
+        module="gymnasium.wrappers.rendering"
+)
 import torch as t 
 import numpy as np
 import wandb
@@ -16,12 +30,13 @@ from environment import eval_parallel_safe, make_training_env
 import argparse
 from training_utils import TRAINING_CONFIG, TESTING_CONFIG
 import time
-
+from tqdm import tqdm 
+import os
 parser = argparse.ArgumentParser()
 parser.add_argument('--config', choices=['train', 'test'], default='test')
 args=parser.parse_args()
 config = TRAINING_CONFIG if args.config == 'train' else TESTING_CONFIG
-run = config.setup_wandb()
+
 
 def init_training(agent, config, device):
     policy = PPO(
@@ -38,13 +53,15 @@ def init_training(agent, config, device):
     env = make_training_env(num_envs=config.num_envs)
     environment = env.reset()
     state = environment['pixels']
+    if config.num_envs == 1 and state.dim() == 3:
+        state = state.unsqueeze(0) # Handle 1 env only, (4, 84, 84) -> (1, 4, 84, 84)
 
     return agent, policy, buffer, env, environment, state
 
 def init_tracking(config):
     return {
-        'episode_rewards': [0.0] * config.num_envs,
-        'episode_lengths': [0] * config.num_envs,
+        'current_episode_rewards': [0.0] * config.num_envs,
+        'current_episode_lengths': [0] * config.num_envs,
         'completed_rewards': [],
         'completed_lengths': [],
         'num_updates': 0,
@@ -57,14 +74,14 @@ def init_tracking(config):
 def update_episode_tracking(tracking, config, rewards, dones):
     # Update per env tracking
     for i in range(config.num_envs):
-        tracking['episode_rewards'][i] += rewards[i].item()
-        tracking['episode_lengths'][i] += 1
+        tracking['current_episode_rewards'][i] += rewards[i].item()
+        tracking['current_episode_lengths'][i] += 1
 
         if dones[i].item():
-            tracking['completed_rewards'].append(tracking['episode_rewards'][i])
-            tracking['completed_lengths'].append(tracking['episode_lengths'][i])
-            tracking['episode_rewards'][i] = 0.0
-            tracking['episode_lengths'][i] = 0
+            tracking['completed_rewards'].append(tracking['current_episode_rewards'][i])
+            tracking['completed_lengths'].append(tracking['current_episode_lengths'][i])
+            tracking['current_episode_rewards'][i] = 0.0
+            tracking['current_episode_lengths'][i] = 0
             tracking['episode_num'] += 1
 
 def run_evaluation(model, policy, tracking, config, run, episodes):
@@ -95,7 +112,10 @@ def log_training_metrics(tracking, mean_loss, config, step):
         })
 
 def save_checkpoint(agent, tracking, config, run, step):
-    model_path = f"ImpalaSmall{tracking['episode_num']}.pt"
+
+    checkpoint_dir = "model_checkpoints"
+    os.makedirs(checkpoint_dir, exist_ok=True)
+    model_path = os.path.join(checkpoint_dir, f"ImpalaSmall{tracking['episode_num']}.pt")
     t.save(agent.state_dict(), model_path)
 
     if config.USE_WANDB:
@@ -105,6 +125,8 @@ def save_checkpoint(agent, tracking, config, run, step):
     tracking['last_checkpoint'] = step
 
 def train(model, num_eval_episodes=2):
+
+    run = config.setup_wandb()
     device = "cuda" if t.cuda.is_available() else "cpu"
     agent = model().to(device)
     agent, policy, buffer, env, environment, state = init_training(agent, config, device)
@@ -114,15 +136,26 @@ def train(model, num_eval_episodes=2):
     else:
         print("Training on CPU")
     tracking = init_tracking(config)
-
-    for step in range(config.num_training_steps):
+    
+    pbar = tqdm(range(config.num_training_steps), disable=not config.show_progress)
+    for step in pbar:
 
         actions, log_probs, values = policy.action_selection(state)
         environment["action"] = actions.unsqueeze(-1)
         environment = env.step(environment)
         next_state = environment["next"]["pixels"]
+
+        if config.num_envs == 1 and next_state.dim() == 3:
+            next_state = next_state.unsqueeze(0) # Handle single env
+
         rewards = environment["next"]["reward"]
         dones = environment["next"]["done"]
+
+        if config.num_envs == 1:
+            if rewards.dim() == 0:
+                rewards = rewards.unsqueeze(0)
+            if dones.dim() == 0:
+                dones = dones.unsqueeze(0)
         
         # Store experience
         buffer.store(
@@ -138,6 +171,15 @@ def train(model, num_eval_episodes=2):
 
         # Update episode tracking
         update_episode_tracking(tracking, config, rewards, dones)
+
+        # Update progress bar:
+        if config.show_progress and len(tracking['completed_rewards']) > 0:
+            pbar.set_postfix({
+                'episodes': tracking['episode_num'],
+                'mean_reward': f"{np.mean(tracking['completed_rewards']):.2f}",
+                'updates': tracking['num_updates']
+            })
+
         
         # Evaluation
         if tracking['total_env_steps'] - tracking['last_eval_steps'] >= config.eval_freq:
@@ -160,8 +202,7 @@ def train(model, num_eval_episodes=2):
             # Save model checkpoints
             if step - tracking['last_checkpoint'] >= config.checkpoint_freq:
                 save_checkpoint(agent, tracking, config, run, step)
-                print("Check WANDB for test progress.")
-                exit(0)
+                print(f"Model checkpoint saved at step {step}")
     
     if config.USE_WANDB:
         wandb.finish()
