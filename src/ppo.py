@@ -11,14 +11,19 @@ class PPO: # TODO: Implement lots of rollout at once, multiple envs
         self.c1 = c1 
         self.c2 = c2
 
-    def action_selection(self, state):
+    def action_selection(self, states):
         with t.inference_mode():
-            state = state.to(self.device)
-            state_logits, value = self.model(state.unsqueeze(0)) # add batch dim, shape (1, 4, 84, 84)
+            states = states.to(self.device)
+            # states has shape (num_envs, 4, 84, 84) or (4, 84, 84) if num_envs == 1
+            if states.dim() == 3: # If num_envs == 1, add a batch dim
+                states = states.unsqueeze(0)
+
+            state_logits, value = self.model(states) # add batch dim, shape (1, 4, 84, 84)
+        
         distributions = Categorical(logits=state_logits)
-        action = distributions.sample()
-        action_prob = distributions.log_prob(action)
-        return action, action_prob.item(), value.squeeze().item() # Return scalars
+        actions = distributions.sample()
+        action_probs = distributions.log_prob(actions)
+        return actions, action_probs, value.squeeze(-1)
 
     def eval_action_selection(self, state):
         with t.inference_mode():
