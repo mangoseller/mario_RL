@@ -140,8 +140,17 @@ def train(model, num_eval_episodes=2):
     pbar = tqdm(range(config.num_training_steps), disable=not config.show_progress)
     for step in pbar:
 
+
+
+
         actions, log_probs, values = policy.action_selection(state)
-        environment["action"] = actions.unsqueeze(-1)
+        action_onehot = t.nn.functional.one_hot(actions, num_classes=13).float()
+        environment["action"] = action_onehot.squeeze(0)
+
+        print(f"Generated actions: {actions}, shape: {actions.shape}, dtype: {actions.dtype}")
+        #  environment["action"] = actions
+
+        print(f"Action in environment dict: {environment['action']}")
         environment = env.step(environment)
         next_state = environment["next"]["pixels"]
 
