@@ -68,11 +68,11 @@ TRAINING_CONFIG = TrainingConfig(
 )
 
 TESTING_CONFIG = TrainingConfig(
-    num_envs=4,
+    num_envs=1,
     num_training_steps=100000,
     buffer_size=50,
     eval_freq=200000,
-    checkpoint_freq=500,
-    USE_WANDB=True,
+    checkpoint_freq=5000000000,
+    USE_WANDB=False,
     show_progress=True
 )

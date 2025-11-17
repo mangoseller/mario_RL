@@ -18,7 +18,10 @@ from model_small import ImpalaSmall
 from ppo import PPO
 import torch as t
 import time
-
+class DebugWrapper(gym.Wrapper):
+    def step(self, action):
+        print(f"DebugWrapper received: {action}, type: {type(action)}")
+        return self.env.step(action)
 class Discretizer(gym.ActionWrapper):
 # Wrap an env to use COMBOS as its discrete action space
     def __init__(self, env, combos):
@@ -33,7 +36,11 @@ class Discretizer(gym.ActionWrapper):
         self.action_space = gym.spaces.Discrete(len(self._decode_discrete_action)) 
     
     def action(self, action):
-        return self._decode_discrete_action[action].copy() # Convert integer action into expected boolean arr of button presses
+        print(f"Discretizer received action: {action}, type: {type(action)}")
+        result = self._decode_discrete_action[action].copy()
+        print(f"Discretizer returning: {result}")
+        return result
+    #  return self._decode_discrete_action[action].copy() # Convert integer action into expected boolean arr of button presses
 
 class HandleMarioLifeLoss(gym.Wrapper):
 # Frame skip that stops on life loss to allow for episode termination on death
@@ -71,8 +78,9 @@ class HandleMarioLifeLoss(gym.Wrapper):
         return obs, total_reward, terminated, truncated, info
 
 def prepare_env(env, skip=4, record=False, record_dir=None):
+    # wrapped_env = DebugWrapper(env)
     wrapped_env = Discretizer(env, MARIO_ACTIONS)
-    wrapped_env = HandleMarioLifeLoss(wrapped_env, skip=4) # Frame skip
+    # wrapped_env = HandleMarioLifeLoss(wrapped_env, skip=4) # Frame skip
     if record:
         wrapped_env = RecordVideo(
             wrapped_env,
@@ -80,9 +88,13 @@ def prepare_env(env, skip=4, record=False, record_dir=None):
             episode_trigger=lambda x: True, # Record every episode, used for eval runs
             name_prefix=f"eval_{int(time.time())}"
         )
+
     wrapped_env = GymWrapper(wrapped_env)
 
-    return TransformedEnv(wrapped_env, Compose(*[
+    print(f"GymWrapper action_spec: {wrapped_env.action_spec}")
+    print(f"GymWrapper action_space: {wrapped_env._env.action_space}")
+    
+    return TransformedEnv(wrapped_env, Compose([
     ToTensorImage(), # Convert stable-retro return values to PyTorch Tensors
     Resize(84, 84), # Can also do 96x96, 128x128
     GrayScale(),
