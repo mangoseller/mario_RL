@@ -19,6 +19,7 @@ from model_small import ImpalaSmall
 from ppo import PPO
 import torch as t
 import time
+from training_utils import get_torch_compatible_actions
 
 class Discretizer(gym.ActionWrapper):
 # Wrap an env to use COMBOS as its discrete action space
@@ -41,40 +42,41 @@ class HandleMarioLifeLoss(gym.Wrapper):
     def __init__(self, env, skip=4):
         super().__init__(env)
         self.skip = skip
-        self.prev_lives = None
-
+        self.prev_lives = None       
+        self.steps_since_reset = 0  # Track steps since last reset
+ 
     def reset(self, **kwargs):
         obs, info = self.env.reset(**kwargs)
-        # print(self.env.env.unwrapped.data['7E0DBE'])
-        # print(self.env.env.get_ram()[00007'])
-        self.prev_lives = info.get('lives', None)
+        self.prev_lives = info.get('lives', None) # TODO: Find out if this needs to be removed
+        self.steps_since_reset = 0  # Reset the counter
         return obs, info
-
+ 
     def step(self, action):
         total_reward = 0.0
         terminated, truncated = False, False
-
-        for _ in range(self.skip):
+        self.steps_since_reset += 1
+ 
+        for i in range(self.skip):
             obs, reward, term, trunc, info = self.env.step(action)
-
+ 
             total_reward += reward
-            current_lives = info.get('lives', None)
-
-            # Check for life loss
-            if self.prev_lives is not None and current_lives is not None \
-            and current_lives < self.prev_lives:
-                self.prev_lives = current_lives
-
-                terminated = True
-                break # Stop frame skipping
-
-            self.prev_lives = current_lives
-            terminated = term
-            truncated = trunc
-            if term or trunc:
-                break # Stop on other done conditions
+            if i == 0: # If this is the first frame get the life count
+                self.prev_lives = info.get('lives', None)
+            else: # Otherwise get the current life for comparisons
+                current_lives = info.get('lives', None)
+ 
+            # Check for life loss (but skip check on first step after reset to avoid race condition)
+            if i > 0 and self.steps_since_reset > 1:  # Only check after first step
+                if self.prev_lives is not None and current_lives is not None \
+                and current_lives < self.prev_lives:
+                    self.prev_lives = current_lives
+ 
+                    terminated = True
+                    break # Stop frame skipping
 
         return obs, total_reward, terminated, truncated, info
+
+ 
 
 def prepare_env(env, skip=4, record=False, record_dir=None):
     wrapped_env = Discretizer(env, MARIO_ACTIONS)
@@ -114,7 +116,7 @@ def evaluate(agent, num_episodes=5, record_dir='/evals'):
 
         while not done:
             action = agent.eval_action_selection(state)
-            eval_environment["action"] = action
+            eval_environment["action"] = get_torch_compatible_actions(t.tensor(action), num_envs=1)
             eval_environment = eval_env.step(eval_environment)
             state = eval_environment["next"]["pixels"]
             reward = eval_environment["next"]["reward"].item()

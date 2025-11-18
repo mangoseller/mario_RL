@@ -182,12 +182,12 @@ def train(model, num_eval_episodes=2):
         # Evaluation
         if tracking['total_env_steps'] - tracking['last_eval_steps'] >= config.eval_freq:
             run_evaluation(model, policy, tracking, config, run, num_eval_episodes)
-    
-        if dones.item(): # TODO: Separate training with 1 env and multienvs into different functions
-            environment = env.reset() # Handle single env
-            state = environment["pixels"].unsqueeze(0)
-        else:
-            state = next_state
+        if config.num_envs == 1:
+            if dones.item(): # TODO: Separate training with 1 env and multienvs into different functions
+                environment = env.reset() # Handle single env
+                state = environment["pixels"].unsqueeze(0)
+            
+        state = next_state
         
         # PPO update when buffer is full
         if buffer.idx == buffer.capacity:
