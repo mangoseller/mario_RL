@@ -42,7 +42,7 @@ max_updates = config.num_training_steps // config.buffer_size
 def init_training(agent, config, device):
     policy = PPO(
         model=agent,
-        lr=config.learning_rate, # TODO: Implement LR Scheduling
+        lr=config.learning_rate,  
         epsilon=config.clip_eps,
         optimizer=t.optim.Adam,
         device=device,
@@ -98,7 +98,7 @@ def run_evaluation(model, policy, tracking, config, run, episodes):
     if config.USE_WANDB:
         wandb.log(eval_metrics)
         vids = wandb.Artifact(
-            f"eval_videos_step_{tracking['total_env_steps']}",
+            f"{readable_timestamp()}_step_{tracking['total_env_steps']}",
             type="eval_videos"
         )
         vids.add_dir(eval_dir)
@@ -117,7 +117,6 @@ def log_training_metrics(tracking, mean_loss, policy, config, step):
             "global_step": step,
             "num_updates": tracking['num_updates']
         })
-    print(policy.get_current_lr())
 
 def save_checkpoint(agent, tracking, config, run, step):
 
