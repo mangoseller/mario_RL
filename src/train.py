@@ -132,11 +132,11 @@ def save_checkpoint(agent, tracking, config, run, step):
     tracking['last_checkpoint'] = step
 
 def train(model, num_eval_episodes=2):
-    print(config.c2)
     run = config.setup_wandb()
     device = "cuda" if t.cuda.is_available() else "cpu"
     agent = model().to(device)
-    # waits = t.load("ImpalaSmall145.pt", map_location="cpu")
+    initial_entropy = config.c2
+    # waits = t.load("ImpalaSmall973.pt", map_location="cpu")
     # agent.load_state_dict(waits)
     agent, policy, buffer, env, environment, state = init_training(agent, config, device)
     if device == "cuda":
@@ -148,6 +148,14 @@ def train(model, num_eval_episodes=2):
     pbar = tqdm(range(config.num_training_steps), disable=not config.show_progress)
     
     for step in pbar:
+
+        # Linearly decay entropy to encourage deterministic policy
+        progress = step / config.num_training_steps
+        new_entropy = initial_entropy * (1.0 - progress)
+        policy.c2 = (max(0.0, new_entropy))
+        # print(policy.c2)
+        
+       
         actions, log_probs, values = policy.action_selection(state)
         environment["action"] = get_torch_compatible_actions(actions)
         environment = env.step(environment)
