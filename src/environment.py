@@ -120,11 +120,39 @@ class HandleMarioLifeLoss(gym.Wrapper):
             self.prev_lives = current_lives
         return obs, total_reward, terminated, truncated, info
 
- 
+class StepPenalty(gym.ActionWrapper):
+    def __init__(self, env, penalty=0.01):
+        super().__init__(env)
+        self.penalty = penalty
+    def step(self, action):
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        reward -= self.penalty
+        return obs, reward, terminated, truncated, info
+class DamagePenalty(gym.ActionWrapper):
+    def __init__(self, env, penalty=1.0):
+        super().__init__(env)
+        self.penalty = penalty
+        self.last_state = 0
+    def reset(self, **kwargs):
+        obs, info = self.env.reset(**kwargs)
+        self.last_state = info.get('powerup', 0)
+        return obs, info
+    def step(self, action):
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        current_state = info.get('powerup', 0)
+
+        if self.last_state > 0 and current_state == 0 and not terminated:
+            reward -= self.penalty
+        elif self.last_state == 0 and current_state > 0:
+            reward += self.penalty / 3
+        self.last_state = current_state
+        return obs, reward, terminated, truncated, info
 
 def prepare_env(env, skip=2, record=False, record_dir=None):
     wrapped_env = Discretizer(env, MARIO_ACTIONS)
     wrapped_env = HandleMovementReward(wrapped_env, scale=0.015)
+    wrapped_env = StepPenalty(wrapped_env, penalty=0.00015)
+    wrapped_env = DamagePenalty(wrapped_env, penalty=1.0)
     wrapped_env = HandleMarioLifeLoss(wrapped_env, skip=skip) # Frame skip
     if record:
         wrapped_env = RecordVideo(
@@ -140,7 +168,7 @@ def prepare_env(env, skip=2, record=False, record_dir=None):
     Resize(84, 84), # Can also do 96x96, 128x128
     GrayScale(),
     CatFrames(N=4, dim=-3), # dim -3 stacks frames over the channel dimension (does this make sense with gray frames?)
-    StepCounter(max_steps=25),
+    StepCounter(),
     RewardSum(),
   ]))
  
@@ -168,7 +196,7 @@ def evaluate(agent, num_episodes=5, record_dir='/evals'):
             done = eval_environment["next"]["done"].item()
             episode_reward += reward
             episode_length += 1
-        
+
         eval_rewards.append(episode_reward)
         eval_lengths.append(episode_length)
 

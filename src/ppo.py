@@ -44,6 +44,9 @@ class PPO:
             logits, _ = self.model(state.unsqueeze(0))
 
         action = t.argmax(logits, dim=-1)
+        # STOCHASTIC
+        # distributions = Categorical(logits=logits)
+        # action = distributions.sample()
         return action.item()
 
     def compute_loss(self, states, actions, old_log_probs, advantages, returns):
