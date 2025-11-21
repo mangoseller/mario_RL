@@ -36,6 +36,39 @@ class Discretizer(gym.ActionWrapper):
     
     def action(self, action):
         return self._decode_discrete_action[action].copy() # Convert integer action into expected boolean arr of button presses
+class HandleMovementReward(gym.Wrapper):
+    def __init__(self, env, scale=0.01):
+        super().__init__(env)
+        self.scale = scale
+        self._max_x = 0
+        self._global_x = 0
+        self._lastx = 0
+    def reset(self, **kwargs):
+        obs, info = self.env.reset(**kwargs)
+        self._max_x = 0
+        self._global_x = 0
+        self._lastx  = 0
+        return obs, info
+
+    def step(self, action):
+        obs, reward, terminated, truncated, info = self.env.step(action)
+
+        raw_x = info.get("xpos", 16)
+        delta = raw_x - self._lastx
+        if delta < -128:
+            delta += 256
+        elif delta > 128:
+            delta -=256
+
+        self._global_x += delta
+        self._lastx = raw_x
+
+        r = 0
+        if self._global_x > self._max_x:
+            gain = self._global_x - self._max_x
+            r = gain * self.scale
+            self._max_x = self._global_x
+        return obs, reward + r, terminated, truncated, info
 
 class HandleMarioLifeLoss(gym.Wrapper):
     # Frame skip that stops on life loss to allow for episode termination on death
@@ -45,6 +78,7 @@ class HandleMarioLifeLoss(gym.Wrapper):
         self.completed = False
         self.prev_lives = None       
         self.steps_since_reset = 0  # Track steps since last reset
+        self.lastX = 16
  
     def reset(self, **kwargs):
         obs, info = self.env.reset(**kwargs)
@@ -58,6 +92,14 @@ class HandleMarioLifeLoss(gym.Wrapper):
  
         for i in range(self.skip):
             obs, reward, term, trunc, info = self.env.step(action)
+            # print(f"PRESENT REWARD IS {reward}")
+            x_pos = info.get('xpos')
+            # print(x_pos)
+            if x_pos > self.lastX:
+                # print(x_pos)
+                self.lastX = x_pos
+
+            self.lastX = x_pos
             CLEARED_VAL = info.get('level_complete', 80)
             total_reward += reward
             current_lives = info.get('lives', None)
@@ -82,6 +124,7 @@ class HandleMarioLifeLoss(gym.Wrapper):
 
 def prepare_env(env, skip=2, record=False, record_dir=None):
     wrapped_env = Discretizer(env, MARIO_ACTIONS)
+    wrapped_env = HandleMovementReward(wrapped_env, scale=0.015)
     wrapped_env = HandleMarioLifeLoss(wrapped_env, skip=skip) # Frame skip
     if record:
         wrapped_env = RecordVideo(
