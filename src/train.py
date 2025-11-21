@@ -136,10 +136,8 @@ def train(model, num_eval_episodes=2):
     run = config.setup_wandb()
     device = "cuda" if t.cuda.is_available() else "cpu"
     agent = model().to(device)
-
-    waits = t.load('ImpalaSmall145.pt', map_location="cpu")
-    agent.load_state_dict(waits)
-
+    # waits = t.load("ImpalaSmall145.pt", map_location="cpu")
+    # agent.load_state_dict(waits)
     agent, policy, buffer, env, environment, state = init_training(agent, config, device)
     if device == "cuda":
         assert next(agent.parameters()).is_cuda, "Model is not on GPU!"

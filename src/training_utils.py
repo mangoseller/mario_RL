@@ -106,7 +106,7 @@ TESTING_CONFIG = TrainingConfig(
     buffer_size=4096,
     eval_freq= 100_000, # 20000
     checkpoint_freq=100_000,
-    USE_WANDB=False,
+    USE_WANDB=True,
     show_progress=True,
-    c2=0.1, # 0.05
+    c2=0.01, # 0.01 ? 
 )
