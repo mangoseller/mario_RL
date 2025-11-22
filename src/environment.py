@@ -150,8 +150,8 @@ class DamagePenalty(gym.ActionWrapper):
 
 def prepare_env(env, skip=2, record=False, record_dir=None):
     wrapped_env = Discretizer(env, MARIO_ACTIONS)
-    wrapped_env = HandleMovementReward(wrapped_env, scale=0.015)
-    wrapped_env = StepPenalty(wrapped_env, penalty=0.00015)
+    wrapped_env = HandleMovementReward(wrapped_env, scale=0.02)
+    wrapped_env = StepPenalty(wrapped_env, penalty=0.001)
     wrapped_env = DamagePenalty(wrapped_env, penalty=1.0)
     wrapped_env = HandleMarioLifeLoss(wrapped_env, skip=skip) # Frame skip
     if record:
@@ -172,7 +172,7 @@ def prepare_env(env, skip=2, record=False, record_dir=None):
     RewardSum(),
   ]))
  
-def evaluate(agent, num_episodes=5, record_dir='/evals', temp=0.1):
+def evaluate(agent, num_episodes=5, record_dir='/evals', temp=0.05):
     eval_rewards, eval_lengths = [], []
     os.makedirs(record_dir, exist_ok=True)
     eval_env = retro.make('SuperMarioWorld-Snes',
@@ -188,6 +188,9 @@ def evaluate(agent, num_episodes=5, record_dir='/evals', temp=0.1):
         done = False
 
         while not done:
+            if episode_length >= 4000:
+                print("Terminating long episode")
+                break
             action = agent.eval_action_selection(state, temp)
             eval_environment["action"] = get_torch_compatible_actions(t.tensor(action))
             eval_environment = eval_env.step(eval_environment)

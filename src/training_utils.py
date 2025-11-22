@@ -3,7 +3,7 @@ import os
 import wandb
 import torch as t
 from datetime import datetime
-
+import math
 @dataclass
 class TrainingConfig: 
     num_envs: int
@@ -14,8 +14,8 @@ class TrainingConfig:
     show_progress: bool
 
     # PPO Parameters
-    learning_rate: float = 2.5e-4
-    gamma: float = 0.99
+    learning_rate: float = 1e-4
+    gamma: float = 0.9995
     lambda_gae: float = 0.95
     epsilon_advantage: float = 1e-8
     clip_eps: float = 0.2
@@ -24,7 +24,7 @@ class TrainingConfig:
     epochs: int = 8 # Epochs for PPO update
     lr_schedule: str = 'cosine'
     min_lr: float = 1e-5
-   
+
     # Model Params
     architecture = 'ImpalaSmall'
     minibatch_size: int = 64
@@ -78,26 +78,44 @@ def readable_timestamp():
     return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 def get_temp(step, total_steps):
-    start_threshold = int(0.2 * total_steps)
-    end_threshold = int(0.8 * total_steps)
+    start_threshold = int(0.1 * total_steps)
+    end_threshold = int(0.5 * total_steps)
     if step < start_threshold:
         return 1.0
     elif step < end_threshold:
         # Exponential Decay
         progress = (step - start_threshold) / (end_threshold - start_threshold)
-        return 1.0 * (0.1/1.0) ** progress
+        return 1.0 - (0.5 * progress)
     else:
-        return 0.1
+        return 0.5
+# def get_entropy(step, total_steps):
+#     start_threshold = int(0.2 * total_steps)
+#     if step < start_threshold:
+#         return 0.01
+#     else:
+#         progress = (step - start_threshold) / (total_steps - start_threshold)
+#         return max(0.0001, 0.01 * (0.0001 / 0.01) ** progress)
+#
 def get_entropy(step, total_steps):
-    return 0.0
-    start_threshold = int(0.2 * total_steps)
-    if step < start_threshold:
-        return 0.01
-    else:
-        progress = (step - start_threshold) / (total_steps - start_threshold)
-        return max(0.0001, 0.01 * (0.0001 / 0.01) ** progress)
+    """
+    Implements a Cyclical (Sawtooth) Entropy Schedule.
+    Spikes entropy high to break local optima, then decays aggressively
+    to allow for precision refinement.
+    """
+    num_cycles = 3     
+    max_entropy = 0.1    
+    min_entropy = 0.001  
+    decay_power = 4.0   
+    
+    cycle_length = total_steps / num_cycles
+    cycle_progress = (step % cycle_length) / cycle_length
+    
+    decay_factor = math.pow((1 - cycle_progress), decay_power)
+    
+    current_entropy = min_entropy + (max_entropy - min_entropy) * decay_factor
+    
+    return current_entropy
 
-# Anneal temp over trianing
 # Sweep config
 SWEEPRUN_CONFIG = TrainingConfig(
     num_envs = 6,
@@ -129,6 +147,6 @@ TESTING_CONFIG = TrainingConfig(
     checkpoint_freq=100_000,
     USE_WANDB=True,
     show_progress=True,
-    c1=1.0,
-    c2=0.00, # 0.01 ? 
+    c1=0.8,
+    c2=0.01, # 0.01 ? 
 )
