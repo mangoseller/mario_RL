@@ -170,7 +170,6 @@ def train(model, num_eval_episodes=5):
     run = config.setup_wandb()
     device = "cuda" if t.cuda.is_available() else "cpu"
     agent = model().to(device)
-
     agent, policy, buffer, env, environment, state = init_training(agent, config, device)
     if device == "cuda":
         assert next(agent.parameters()).is_cuda, "Model is not on GPU!"
@@ -232,7 +231,6 @@ def train(model, num_eval_episodes=5):
         # Evaluation
         if tracking['total_env_steps'] - tracking['last_eval_steps'] >= config.eval_freq:
             run_evaluation(model, policy, tracking, config, run, num_eval_episodes, temp=0.1)
-            print(f"C2: {policy.c2}, Temp: {temp}")
         if config.num_envs == 1:
             if dones.item(): # TODO: Separate training with 1 env and multienvs into different functions
                 environment = env.reset() # Handle single env
@@ -241,7 +239,7 @@ def train(model, num_eval_episodes=5):
         
         # PPO update when buffer is full
         if buffer.idx == buffer.capacity:
-            mean_loss = policy.update(buffer, next_state=state)
+            mean_loss = policy.update(buffer, next_state=state, temp=temp)
             tracking['num_updates'] += 1
             
             # Log metrics
@@ -255,11 +253,16 @@ def train(model, num_eval_episodes=5):
             if step - tracking['last_checkpoint'] >= config.checkpoint_freq:
                 save_checkpoint(agent, tracking, config, run, step)
                 print(f"Model checkpoint saved at step {step}")
-    
+    else:
+        run_evaluation(model, policy, tracking, config, run, num_eval_episodes, temp=0.1)
+        save_checkpoint(agent, tracking, config, run, step)
+
+
     if config.USE_WANDB:
         wandb.finish()
     else:
         print("Test completed without incident.")
+        
 
 if __name__ == "__main__":
     train(ImpalaSmall)

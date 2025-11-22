@@ -35,12 +35,18 @@ class PPO:
         scaled_logits = state_logits / temp
         distributions = Categorical(logits=scaled_logits)
         actions = distributions.sample()
+        log_probs = distributions.log_prob(actions)
 
-        raw_distributions = Categorical(logits=state_logits)
-        raw_action_probs = raw_distributions.log_prob(actions)
        
-        return actions, raw_action_probs, value.squeeze(-1)
-    
+        return actions, log_probs, value.squeeze(-1)
+    #
+    # def eval_action_selection(self, state, temp):
+    #     with t.inference_mode():
+    #         state = state.to(self.device)
+    #         logits, _ = self.model(state.unsqueeze(0))
+    #
+    #     action = t.argmax(logits, dim=-1)
+    #     return action.item()
     def eval_action_selection(self, state, temp):
         with t.inference_mode():
             state = state.to(self.device)
@@ -49,8 +55,8 @@ class PPO:
         distribution = Categorical(logits=scaled_logits)
         action = distribution.sample()
         return action.item()
-
-    def compute_loss(self, states, actions, old_log_probs, advantages, returns):
+    #
+    def compute_loss(self, states, actions, old_log_probs, advantages, returns, temp):
         # Move params to correct device
         states = states.to(self.device)
         actions = actions.to(self.device)
@@ -59,9 +65,11 @@ class PPO:
         returns = returns.to(self.device)
 
         logits, values = self.model(states)
+        scaled_logits = logits / temp
+
         # logits - (batch_size, num_actions), values (batch_size, 1)
 
-        distributions = Categorical(logits=logits)
+        distributions = Categorical(logits=scaled_logits)
         new_log_probs = distributions.log_prob(actions) # shape (batch_size,)
 
         old_log_probs = old_log_probs.detach() # Detach gradients
@@ -147,7 +155,7 @@ class PPO:
         returns = advantages + values
         return advantages, returns
 
-    def update(self, buffer, num_epochs=5, minibatch_size=64, eps=1e-8, next_state=None):
+    def update(self, buffer, temp, num_epochs=5, minibatch_size=64, eps=1e-8, next_state=None):
         self.model.train()
         advantages, returns = self.compute_advantages(buffer, next_state=next_state)
         normalized_advantages = (advantages - advantages.mean()) / (advantages.std() + eps)
@@ -180,7 +188,7 @@ class PPO:
                 mb_returns = returns[start_idx:end_idx]
 
                 loss, diagnostics = self.compute_loss(
-                    mb_states, mb_actions, mb_log_probs, mb_advantages, mb_returns
+                    mb_states, mb_actions, mb_log_probs, mb_advantages, mb_returns, temp=temp
                 )
                 total_losses.append(loss.item())
                 
