@@ -170,6 +170,9 @@ def train(model, num_eval_episodes=5):
     run = config.setup_wandb()
     device = "cuda" if t.cuda.is_available() else "cpu"
     agent = model().to(device)
+    
+    waits = t.load("finetune.pt", map_location="cpu")
+    agent.load_state_dict(waits)
     agent, policy, buffer, env, environment, state = init_training(agent, config, device)
     if device == "cuda":
         assert next(agent.parameters()).is_cuda, "Model is not on GPU!"
@@ -180,9 +183,13 @@ def train(model, num_eval_episodes=5):
     pbar = tqdm(range(config.num_training_steps), disable=not config.show_progress)
     
     for step in pbar:
-        policy.c2 = get_entropy(step, total_steps=config.num_training_steps) 
-        temp = get_temp(step, total_steps=config.num_training_steps) 
+        # policy.c2 = get_entropy(step, total_steps=config.num_training_steps) 
+        # temp = get_temp(step, total_steps=config.num_training_steps) 
+        policy.c2 = 0.0001
+        temp = 0.5
         actions, log_probs, values = policy.action_selection(state, temp)
+
+        
 
 
         environment["action"] = get_torch_compatible_actions(actions)

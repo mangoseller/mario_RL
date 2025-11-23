@@ -7,154 +7,38 @@ from torchrl.envs.transforms import (
     StepCounter,
     RewardSum, 
     Compose,
-    Transform
 )
-import numpy as np
 import retro
-import gymnasium as gym
-import os
 from gymnasium.wrappers import RecordVideo
-from multiprocessing import Process, Queue
-from model_small import ImpalaSmall
-from ppo import PPO
-import torch as t
-import time
-from training_utils import get_torch_compatible_actions, readable_timestamp
+from wrappers import Discretizer, FrameSkipAndTermination, MaxStepWrapper
+from rewards import ComposedRewardWrapper
+from training_utils import readable_timestamp
 
-class Discretizer(gym.ActionWrapper):
-# Wrap an env to use COMBOS as its discrete action space
-    def __init__(self, env, combos):
-        super().__init__(env)
-        buttons = env.unwrapped.buttons 
-        self._decode_discrete_action = []
-        for c in combos:
-            arr = np.array([False] * env.action_space.n) # All positions except for the button we want to press should be False
-            for button in c:
-                arr[buttons.index(button)] = True # Set the button position in the array to True
-            self._decode_discrete_action.append(arr)
-        self.action_space = gym.spaces.Discrete(len(self._decode_discrete_action)) 
-    
-    def action(self, action):
-        return self._decode_discrete_action[action].copy() # Convert integer action into expected boolean arr of button presses
-class HandleMovementReward(gym.Wrapper):
-    def __init__(self, env, scale=0.01):
-        super().__init__(env)
-        self.scale = scale
-        self._max_x = 0
-        self._global_x = 0
-        self._lastx = 0
-    def reset(self, **kwargs):
-        obs, info = self.env.reset(**kwargs)
-        self._max_x = 0
-        self._global_x = 0
-        self._lastx  = 0
-        return obs, info
 
-    def step(self, action):
-        obs, reward, terminated, truncated, info = self.env.step(action)
+MARIO_ACTIONS = [
+    [],                   # Do nothing
+    ['RIGHT'],            # Walk right
+    ['RIGHT', 'Y'],       # Run right  
+    ['RIGHT', 'B'],       # Jump right
+    ['RIGHT', 'Y', 'B'],  # Run + jump right
+    ['LEFT'],             # Walk left
+    ['LEFT', 'Y'],        # Run left
+    ['LEFT', 'B'],        # Jump left
+    ['LEFT', 'Y', 'B'],   # Run + jump left
+    ['B'],                # Jump in place
+    ['X'],                # Attack
+    ['DOWN'],             # Duck/enter pipe
+    ['UP'],               # Look up/climb
+    ['A'],                # Spin Jump
+]
 
-        raw_x = info.get("xpos", 16)
-        delta = raw_x - self._lastx
-        if delta < -128:
-            delta += 256
-        elif delta > 128:
-            delta -=256
-
-        self._global_x += delta
-        self._lastx = raw_x
-
-        r = 0
-        if self._global_x > self._max_x:
-            gain = self._global_x - self._max_x
-            r = gain * self.scale
-            self._max_x = self._global_x
-        return obs, reward + r, terminated, truncated, info
-
-class HandleMarioLifeLoss(gym.Wrapper):
-    # Frame skip that stops on life loss to allow for episode termination on death
-    def __init__(self, env, skip=2):
-        super().__init__(env)
-        self.skip = skip
-        self.completed = False
-        self.prev_lives = None       
-        self.steps_since_reset = 0  # Track steps since last reset
-        self.lastX = 16
- 
-    def reset(self, **kwargs):
-        obs, info = self.env.reset(**kwargs)
-        self.steps_since_reset = 0  # Reset the counter
-        return obs, info
- 
-    def step(self, action):
-        total_reward = 0.0
-        terminated, truncated = False, False
-        self.steps_since_reset += 1
- 
-        for i in range(self.skip):
-            obs, reward, term, trunc, info = self.env.step(action)
-            # print(f"PRESENT REWARD IS {reward}")
-            x_pos = info.get('xpos')
-            # print(x_pos)
-            if x_pos > self.lastX:
-                # print(x_pos)
-                self.lastX = x_pos
-
-            self.lastX = x_pos
-            CLEARED_VAL = info.get('level_complete', 80)
-            total_reward += reward
-            current_lives = info.get('lives', None)
-            completed = CLEARED_VAL != 80
-            if completed:
-                terminated = True # Should be truncated ?
-                break 
-            if self.steps_since_reset > 1:
-                if self.prev_lives is not None and current_lives is not None \
-                    and current_lives < self.prev_lives:  
-                        terminated = True
-                        self.prev_lives = current_lives
-                        break # Stop frame skipping
-                else:
-                    if self.prev_lives is None or current_lives is None:
-                        print(f"INFO: Previous Lives: {self.prev_lives}, Current_lives: {current_lives}")
-
-            self.prev_lives = current_lives
-        return obs, total_reward, terminated, truncated, info
-
-class StepPenalty(gym.ActionWrapper):
-    def __init__(self, env, penalty=0.01):
-        super().__init__(env)
-        self.penalty = penalty
-    def step(self, action):
-        obs, reward, terminated, truncated, info = self.env.step(action)
-        reward -= self.penalty
-        return obs, reward, terminated, truncated, info
-class DamagePenalty(gym.ActionWrapper):
-    def __init__(self, env, penalty=1.0):
-        super().__init__(env)
-        self.penalty = penalty
-        self.last_state = 0
-    def reset(self, **kwargs):
-        obs, info = self.env.reset(**kwargs)
-        self.last_state = info.get('powerup', 0)
-        return obs, info
-    def step(self, action):
-        obs, reward, terminated, truncated, info = self.env.step(action)
-        current_state = info.get('powerup', 0)
-
-        if self.last_state > 0 and current_state == 0 and not terminated:
-            reward -= self.penalty
-        elif self.last_state == 0 and current_state > 0:
-            reward += self.penalty / 3
-        self.last_state = current_state
-        return obs, reward, terminated, truncated, info
 
 def prepare_env(env, skip=2, record=False, record_dir=None):
     wrapped_env = Discretizer(env, MARIO_ACTIONS)
-    wrapped_env = HandleMovementReward(wrapped_env, scale=0.02)
-    wrapped_env = StepPenalty(wrapped_env, penalty=0.001)
-    wrapped_env = DamagePenalty(wrapped_env, penalty=1.0)
-    wrapped_env = HandleMarioLifeLoss(wrapped_env, skip=skip) # Frame skip
-    if record:
+    wrapped_env = ComposedRewardWrapper(wrapped_env)
+    wrapped_env = FrameSkipAndTermination(wrapped_env, skip=skip)
+    wrapped_env = MaxStepWrapper(wrapped_env, max_steps=5000)
+    if record is not None:
         wrapped_env = RecordVideo(
             wrapped_env,
             video_folder=record_dir,
@@ -171,69 +55,6 @@ def prepare_env(env, skip=2, record=False, record_dir=None):
     StepCounter(max_steps=25),
     RewardSum(),
   ]))
- 
-def evaluate(agent, num_episodes=5, record_dir='/evals', temp=0.05):
-    eval_rewards, eval_lengths = [], []
-    os.makedirs(record_dir, exist_ok=True)
-    eval_env = retro.make('SuperMarioWorld-Snes',
-                          render_mode='rgb_array',
-                          state='YoshiIsland2',
-                          )
-    eval_env = prepare_env(eval_env, record=True, record_dir=record_dir)
-    for _ in range(num_episodes):
-        eval_environment = eval_env.reset()
-        state = eval_environment["pixels"]
-        episode_reward = 0
-        episode_length = 0
-        done = False
-
-        while not done:
-            if episode_length >= 4000:
-                print("Terminating long episode")
-                break
-            action = agent.eval_action_selection(state, temp)
-            eval_environment["action"] = get_torch_compatible_actions(t.tensor(action))
-            eval_environment = eval_env.step(eval_environment)
-            state = eval_environment["next"]["pixels"]
-            reward = eval_environment["next"]["reward"].item()
-            done = eval_environment["next"]["done"].item()
-            episode_reward += reward
-            episode_length += 1
-
-        eval_rewards.append(episode_reward)
-        eval_lengths.append(episode_length)
-
-    eval_env.close()
-
-    return {
-        "eval/mean_reward": np.mean(eval_rewards),
-        "eval/std_reward": np.std(eval_rewards),
-        "eval/mean_length": np.mean(eval_lengths),
-        "eval/max_reward": np.max(eval_rewards),
-        "eval/min_reward": np.min(eval_rewards)
-    }
-
-
-def _run_eval_(model, model_state_dict, config, num_episodes, record_dir, result_queue, temp):    
-    agent = model().to('cpu')
-    agent.load_state_dict(model_state_dict)
-    eval_policy = PPO(agent, config.learning_rate, epsilon=config.clip_eps, 
-                      optimizer=t.optim.Adam, device='cpu', 
-                      c1=config.c1, c2=0)
-    metrics = evaluate(eval_policy, num_episodes, record_dir, temp)
-    result_queue.put(metrics)
-
-def eval_parallel_safe(model, policy, config, record_dir, eval_temp=0.1, num_episodes=3):
-# Run evaluate in a sub-process 
-    result_queue = Queue()
-    # Move model weights to cpu
-    cpu_state_dicts = {k: v.cpu() for k, v in policy.model.state_dict().items()}
-    process = Process(target=_run_eval_, args=(
-        model, cpu_state_dicts, config, num_episodes, record_dir, result_queue, eval_temp
-    ))
-    process.start()
-    process.join()
-    return result_queue.get()
 
 
 def make_training_env(num_envs=1):
@@ -254,25 +75,3 @@ def make_training_env(num_envs=1):
         render_mode='rgb_array' # human doesn't work for parallel envs
     ))
 )
-
-
-
-MARIO_ACTIONS = [
-    [],                   # Do nothing
-    ['RIGHT'],            # Walk right
-    ['RIGHT', 'Y'],       # Run right  
-    ['RIGHT', 'B'],       # Jump right
-    ['RIGHT', 'Y', 'B'],  # Run + jump right
-    ['LEFT'],             # Walk left
-    ['LEFT', 'Y'],        # Run left
-    ['LEFT', 'B'],        # Jump left
-    ['LEFT', 'Y', 'B'],   # Run + jump left
-    ['B'],                # Jump in place
-    ['X'],                # Attack
-    ['DOWN'],             # Duck/enter pipe
-    ['UP'],               # Look up/climb
-    ['A'],                # Spin Jump
-]
-
-# print(env.action_space) 
-

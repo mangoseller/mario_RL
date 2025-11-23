@@ -18,7 +18,7 @@ class PPO:
             self.scheduler = t.optim.lr_scheduler.CosineAnnealingLR(
                 self.optimizer,
                 T_max=max_steps,
-                eta_min=1e-5,
+                eta_min=1e-6,
             )
         else:
             self.scheduler = None
