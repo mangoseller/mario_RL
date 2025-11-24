@@ -12,8 +12,8 @@ import numpy as np
 import argparse
 from tqdm import tqdm
 from models import ConvolutionalSmall, ImpalaLike
-from config import TRAINING_CONFIG, TESTING_CONFIG, FINETUNE_CONFIG
 from evals import run_evaluation
+from runner import run_training
 from utils import (
     init_training, 
     init_tracking, 
@@ -25,6 +25,14 @@ from utils import (
     get_entropy,
 )
 
+from config import (
+    IMPALA_TRAIN_CONFIG,
+    IMPALA_TEST_CONFIG,
+    IMPALA_TUNE_CONFIG,
+    CONV_TRAIN_CONFIG,
+    CONV_TEST_CONFIG,
+    CONV_TUNE_CONFIG
+) 
 
 
 
@@ -32,7 +40,6 @@ def training_loop(agent, config, num_eval_episodes=5, checkpoint_path=None):
     run = config.setup_wandb()
     device = "cuda" if t.cuda.is_available() else "cpu"
     agent = agent.to(device)
-    
     if checkpoint_path:
         print(f"Loading checkpoint from {checkpoint_path}")
         weights = t.load(checkpoint_path, map_location=device)
@@ -133,49 +140,6 @@ def train(model, config, num_eval_episodes=9):
 def finetune(model, checkpoint_path, config, num_eval_episodes=9):
     agent = model()
     return training_loop(agent, config, num_eval_episodes, checkpoint_path=checkpoint_path)
-
-def main():
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--mode', choices=['train', 'test', 'finetune'], default='test')
-    parser.add_argument('--model', type=str, default=None, 
-                       help='Model to use: ConvolutionalSmall or ImpalaLike')
-    parser.add_argument('--checkpoint', type=str, default='finetune.pt', 
-                       help='Checkpoint path for fine-tuning')
-    args = parser.parse_args()
-    
-    # Get model selection
-    if args.model is None:
-        while True:
-            model_choice = input("Select model (ConvolutionalSmall/ImpalaLike/exit): ").strip()
-            if model_choice.lower() == 'exit':
-                      return
-            elif model_choice == 'ConvolutionalSmall':
-                model = ConvolutionalSmall
-                break
-            elif model_choice == 'ImpalaLike':
-                model = ImpalaLike
-                break
-            else:
-                print(f"Unrecognized model '{model_choice}'. Please choose ConvolutionalSmall or ImpalaLike.")
-    else:
-        if args.model == 'ConvolutionalSmall':
-            model = ConvolutionalSmall
-        elif args.model == 'ImpalaLike':
-            model = ImpalaLike
-        else:
-            print(f"Unrecognized model '{args.model}'. Valid options: ConvolutionalSmall, ImpalaLike")
-            return
-    
-    if args.mode == 'train':
-        train(model, TRAINING_CONFIG)
-    elif args.mode == 'test':
-        train(model, TESTING_CONFIG)
-    elif args.mode == 'finetune':
-        finetune(model, args.checkpoint, FINETUNE_CONFIG)
-
-
-from runner import run_training
 
 if __name__ == "__main__":
     run_training()

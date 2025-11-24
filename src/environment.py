@@ -69,7 +69,7 @@ def make_training_env(num_envs=1):
         return prepare_env(
             retro.make(
             'SuperMarioWorld-Snes',
-            state='DonutPlains1', # YoshiIsland2
+            state='YoshiIsland2', # YoshiIsland2
             render_mode='human', # Change to 'rgb_array' when debugging finished,
         ))
     else:

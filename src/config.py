@@ -144,7 +144,7 @@ CONV_TRAIN_CONFIG = TrainingConfig(
 
 CONV_TEST_CONFIG = TrainingConfig(
     architecture="ConvolutionalSmall",
-    num_envs=12,
+    num_envs=1,
     num_training_steps=1_250_000,
     steps_per_env=4096,
     eval_freq=200_000,
