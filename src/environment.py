@@ -57,25 +57,12 @@ def prepare_env(env, skip=2, record=False, record_dir=None):
     RewardSum(),
   ]))
 
+
 def _get_level_distribution(num_envs):
     # 2/3 of the envs should train on the easier YoshiIsland2
     assert num_envs >= 3 and num_envs % 3 == 0, "Number of environments must be a multiple of 3"
-    third = num_envs // 3
-    two_thirds = third * 2
-    states = ['YoshiIsland2' for _ in range(two_thirds)]
-    states.extend(['YoshiIsland1' for _ in range(third)])
-    
-    return states
-    
-def _get_level_distribution(num_envs):
-    # 2/3 of the envs should train on the easier YoshiIsland2
-    assert num_envs >= 3 and num_envs % 3 == 0, "Number of environments must be a multiple of 3"
-    third = num_envs // 3
-    two_thirds = third * 2
-    states = ['YoshiIsland2' for _ in range(two_thirds)]
-    states.extend(['YoshiIsland1' for _ in range(third)])
-    
-    return states
+    return ['YoshiIsland2' for _ in range((num_envs // 3) * 2)] + ['YoshiIsland1' for _ in range(num_envs // 3)]
+
     
 def make_training_env(num_envs=1):
     if num_envs == 1:

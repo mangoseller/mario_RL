@@ -11,7 +11,7 @@ import torch as t
 import numpy as np
 import argparse
 from tqdm import tqdm
-from model_small import ImpalaSmall
+from models import ConvolutionalSmall, ImpalaLike
 from config import TRAINING_CONFIG, TESTING_CONFIG, FINETUNE_CONFIG
 from evals import run_evaluation
 from utils import (
@@ -93,7 +93,7 @@ def training_loop(agent, config, num_eval_episodes=5, checkpoint_path=None):
             })
     
         if tracking['total_env_steps'] - tracking['last_eval_steps'] >= config.eval_freq:
-            run_evaluation(ImpalaSmall, policy, tracking, config, run, num_eval_episodes)
+            run_evaluation(agent, policy, tracking, config, run, num_eval_episodes)
 
         state, environment = handle_env_resets(env, environment, next_state, terminated, config.num_envs)      
           
@@ -113,7 +113,7 @@ def training_loop(agent, config, num_eval_episodes=5, checkpoint_path=None):
     else:
         env.close()
     # Perform final evaluation and store last weights
-    run_evaluation(ImpalaSmall, policy, tracking, config, run, num_eval_episodes)
+    run_evaluation(agent, policy, tracking, config, run, num_eval_episodes)
     save_checkpoint(agent, tracking, config, run, step)
     
     if config.USE_WANDB:
@@ -134,21 +134,49 @@ def finetune(model, checkpoint_path, config, num_eval_episodes=9):
     agent = model()
     return training_loop(agent, config, num_eval_episodes, checkpoint_path=checkpoint_path)
 
-
 def main():
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--mode', choices=['train', 'test', 'finetune'], default='test')
+    parser.add_argument('--model', type=str, default=None, 
+                       help='Model to use: ConvolutionalSmall or ImpalaLike')
     parser.add_argument('--checkpoint', type=str, default='finetune.pt', 
                        help='Checkpoint path for fine-tuning')
     args = parser.parse_args()
     
+    # Get model selection
+    if args.model is None:
+        while True:
+            model_choice = input("Select model (ConvolutionalSmall/ImpalaLike/exit): ").strip()
+            if model_choice.lower() == 'exit':
+                      return
+            elif model_choice == 'ConvolutionalSmall':
+                model = ConvolutionalSmall
+                break
+            elif model_choice == 'ImpalaLike':
+                model = ImpalaLike
+                break
+            else:
+                print(f"Unrecognized model '{model_choice}'. Please choose ConvolutionalSmall or ImpalaLike.")
+    else:
+        if args.model == 'ConvolutionalSmall':
+            model = ConvolutionalSmall
+        elif args.model == 'ImpalaLike':
+            model = ImpalaLike
+        else:
+            print(f"Unrecognized model '{args.model}'. Valid options: ConvolutionalSmall, ImpalaLike")
+            return
+    
     if args.mode == 'train':
-        train(ImpalaSmall, TRAINING_CONFIG)
+        train(model, TRAINING_CONFIG)
     elif args.mode == 'test':
-        train(ImpalaSmall, TESTING_CONFIG)
+        train(model, TESTING_CONFIG)
     elif args.mode == 'finetune':
-        finetune(ImpalaSmall, args.checkpoint, FINETUNE_CONFIG)
+        finetune(model, args.checkpoint, FINETUNE_CONFIG)
 
+
+from runner import run_training
 
 if __name__ == "__main__":
-    main()
+    run_training()
+

@@ -168,7 +168,8 @@ def get_torch_compatible_actions(actions, num_actions=14):
     return onehot_actions
 
 
-def get_entropy(step, total_steps, max_entropy=0.1, min_entropy=0.001):
+def get_entropy(step, total_steps, max_entropy=0.02, min_entropy=0.005):
+    # Linearly decay entropy over training 
        progress = step / total_steps
        current_entropy = max_entropy - (max_entropy - min_entropy) * progress
        return current_entropy

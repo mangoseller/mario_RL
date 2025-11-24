@@ -9,7 +9,8 @@ class TrainingConfig:
     eval_freq: int
     checkpoint_freq: int
     show_progress: bool
-    
+    architecture: str
+
     steps_per_env: int = 4096
     learning_rate: float = 1e-4
     gamma: float = 0.9995
@@ -21,7 +22,6 @@ class TrainingConfig:
     epochs: int = 8
     lr_schedule: str = 'constant'
     min_lr: float = 1e-6
-    architecture = 'ImpalaSmall'
     USE_WANDB: bool = False
     wandb_project: str = 'marioRL'
     
@@ -72,7 +72,65 @@ class TrainingConfig:
                 config_dict[k] = v
         return cls(**config_dict)
 
-TRAINING_CONFIG = TrainingConfig(
+
+
+IMPALA_TRAIN_CONFIG = TrainingConfig(
+    architecture='ImpalaLike',
+    lr_schedule='linear',
+    learning_rate=2.5e-4,
+    min_lr=1e-6,
+    epochs=4,
+    clip_eps=0.2,
+    c1=0.5,
+    c2=0.02,
+    num_envs=16,
+    steps_per_env=512,
+    num_training_steps=1_500_000,
+    checkpoint_freq=75_000,
+    eval_freq=75_000,
+    show_progress=True,
+    USE_WANDB=True
+)
+
+
+IMPALA_TEST_CONFIG = TrainingConfig(
+    architecture='ImpalaLike',
+    lr_schedule='linear',
+    learning_rate=2.5e-4,
+    min_lr=1e-6,
+    epochs=4,
+    clip_eps=0.2,
+    c1=0.5,
+    c2=0.02,
+    num_envs=1,
+    steps_per_env=4096,
+    num_training_steps=1_500_000,
+    checkpoint_freq=75_000,
+    eval_freq=75_000,
+    show_progress=True,
+    USE_WANDB=False
+)
+
+IMPALA_TUNE_CONFIG = TrainingConfig(
+    architecture='ImpalaLike',
+    lr_schedule='linear',
+    learning_rate=1e-6,
+    min_lr=1e-6,
+    epochs=4,
+    clip_eps=0.2,
+    c1=0.5,
+    c2=0.005,
+    num_envs=16,
+    steps_per_env=512,
+    num_training_steps=500_000,
+    checkpoint_freq=50_000,
+    eval_freq=50_000,
+    show_progress=True,
+    USE_WANDB=True
+)
+
+CONV_TRAIN_CONFIG = TrainingConfig(
+    architecture="ConvolutionalSmall",
     num_envs=1,
     num_training_steps=int(1.5e6),
     steps_per_env=4096, 
@@ -84,7 +142,8 @@ TRAINING_CONFIG = TrainingConfig(
     lr_schedule='linear'
 )
 
-TESTING_CONFIG = TrainingConfig(
+CONV_TEST_CONFIG = TrainingConfig(
+    architecture="ConvolutionalSmall",
     num_envs=12,
     num_training_steps=1_250_000,
     steps_per_env=4096,
@@ -98,22 +157,9 @@ TESTING_CONFIG = TrainingConfig(
     lr_schedule='cosine'
 )
 
-SWEEPRUN_CONFIG = TrainingConfig(
-    num_envs=1,
-    num_training_steps=800_000, 
-    steps_per_env=4096,         
-    eval_freq=80_000,
-    checkpoint_freq=100_000_000,
-    USE_WANDB=True,
-    show_progress=True,
-    learning_rate=2e-5, 
-    c1=0.5,
-    c2=0.01,               
-    gamma=0.99,
-    lr_schedule='cosine'
-)
 
-FINETUNE_CONFIG = TrainingConfig(
+CONV_TUNE_CONFIG = TrainingConfig(
+    architecture="ConvolutionalSmall",
     num_envs=12,
     num_training_steps=500_000,
     steps_per_env=4096, 
