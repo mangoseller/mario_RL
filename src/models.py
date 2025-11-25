@@ -2,7 +2,7 @@ import torch as t
 import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
-
+from einops import repeat
 class ResidualBlock(nn.Module):
 
     def __init__(self, channels):
@@ -63,11 +63,40 @@ class ModelBlock(nn.Module):
         x = self.residual_blocks(x)
         return x
 
+class RandomShifts(nn.Module):
+    # Randomly shift the data for generalisation, data augmentation 
+    def __init__(self, pad=4):
+        super().__init__()
+        self.pad = pad
+    def forward(self, x):
+        if not self.training:
+            return x
+
+        n, c, h, w = x.size()
+        padding = ([self.pad] * 4)
+        x = F.pad(x, padding, 'replicate')
+        eps = 1.0 / (h + 2 * self.pad)
+        
+        v = t.linspace(-1.0 + eps, 1.0-eps, h + 2 * self.pad, device=x.device, dtype=x.dtype)[:h]
+        # Change shape to (h, h 1)
+        x_chan = repeat(v, 'i -> j i 1', j=h)
+        y_chan = repeat(v, 'i -> i j 1', j=h)
+
+        base_grid = t.cat([x_chan, y_chan], dim=2) # (h, h 1)
+        base_grid = repeat(base_grid, 'h w c -> n h w c', n=n) # (n, h, h, 2)
+
+        shift = t.randint(0, 2 * self.pad + 1, size=(n, 1, 1, 2), device=x.device, dtype=x.dtype)
+        shift *= 2.0 / (h + 2 * self.pad)
+
+        grid = base_grid + shift
+        return F.grid_sample(x, grid, padding_mode='zeros', align_corners=False)
+
 class ImpalaLike(nn.Module):
 
     def __init__(self, num_actions=14):
         super().__init__()
-
+        
+        self.aug = RandomShifts(pad=4)
         self.block1 = ModelBlock(4, 16, num_residual=1)
         self.block2 = ModelBlock(16, 32, num_residual=1)
         self.block3 = ModelBlock(32, 64, num_residual=2)
@@ -86,7 +115,7 @@ class ImpalaLike(nn.Module):
         self._initialize_weights()
 
     def forward(self, x):
-
+        x = self.aug(x)
         x = self.block1(x)
         x = self.block2(x)
         x = self.block3(x)
