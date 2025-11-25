@@ -79,15 +79,15 @@ IMPALA_TRAIN_CONFIG = TrainingConfig(
     lr_schedule='linear',
     learning_rate=2.5e-4,
     min_lr=1e-6,
-    epochs=4,
+    epochs=1,
     clip_eps=0.2,
     c1=0.5,
     c2=0.02,
     num_envs=16,
     steps_per_env=512,
-    num_training_steps=1_500_000,
-    checkpoint_freq=75_000,
-    eval_freq=75_000,
+    num_training_steps=2_000_000,
+    checkpoint_freq=100_000,
+    eval_freq=100_000,
     show_progress=True,
     USE_WANDB=True
 )
@@ -104,11 +104,11 @@ IMPALA_TEST_CONFIG = TrainingConfig(
     c2=0.02,
     num_envs=1,
     steps_per_env=4096,
-    num_training_steps=1_500_000,
-    checkpoint_freq=75_000,
-    eval_freq=75_000,
+    num_training_steps=4_000_000,
+    checkpoint_freq=200_000,
+    eval_freq=200_000,
     show_progress=True,
-    USE_WANDB=False
+    USE_WANDB=True
 )
 
 IMPALA_TUNE_CONFIG = TrainingConfig(
@@ -131,7 +131,7 @@ IMPALA_TUNE_CONFIG = TrainingConfig(
 
 CONV_TRAIN_CONFIG = TrainingConfig(
     architecture="ConvolutionalSmall",
-    num_envs=1,
+    num_envs=16,
     num_training_steps=int(1.5e6),
     steps_per_env=4096, 
     eval_freq=250_000,

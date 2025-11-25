@@ -53,7 +53,6 @@ def update_episode_tracking(tracking, config, rewards, dones):
             tracking['current_episode_lengths'][i] = 0
             tracking['episode_num'] += 1
 
-
 def log_training_metrics(tracking, diagnostics, policy, config, step):
     # Log training metrics to wandb or console
     if len(tracking['completed_rewards']) > 0:

@@ -2,15 +2,15 @@ import gymnasium as gym
 
 
 REWARD_CONFIG = {
-    'movement_reward': 0.02,
-    'step_penalty': 0.0001,
-    'damage_penalty': 1.0,
-    'life_loss_penalty': -5.0,
-    'max_steps_penalty': -10.0,
-    'coin_reward': 0.5,
+    'movement_reward': 0.01,
+    'step_penalty': 0.00015,
+    'damage_penalty': 0.5,
+    'life_loss_penalty': -2.5,
+    'max_steps_penalty': -5,
+    'coin_reward': 0.25,
     'score_reward': 0.0002,
-    'midway_reward': 10.0,
-    'level_complete_reward': 20.0,
+    'midway_reward': 15.0,
+    'level_complete_reward': 30.0,
 }
 
 

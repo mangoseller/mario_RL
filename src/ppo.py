@@ -140,7 +140,7 @@ class PPO:
         # Perform a PPO update 
         self.model.train()
         minibatch_size = config.minibatch_size
-        num_epochs = config.num_epochs
+        num_epochs = config.epochs
         advantages, returns = self.compute_advantages(buffer, next_state=next_state)
         normalized_advantages = (advantages - advantages.mean()) / (advantages.std() + eps)
         states, _, actions, log_probs, _, _ = buffer.get()

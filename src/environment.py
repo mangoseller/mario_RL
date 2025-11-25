@@ -57,13 +57,8 @@ def prepare_env(env, skip=2, record=False, record_dir=None):
     RewardSum(),
   ]))
 
-
-def _get_level_distribution(num_envs):
-    # 2/3 of the envs should train on the easier YoshiIsland2
-    assert num_envs >= 3 and num_envs % 3 == 0, "Number of environments must be a multiple of 3"
-    return ['YoshiIsland2' for _ in range((num_envs // 3) * 2)] + ['YoshiIsland1' for _ in range(num_envs // 3)]
-
-    
+_compute_level_distribution = lambda num_envs: ['YoshiIsland2' for _ in range(num_envs // 2)] + ['YoshiIsland1' for _ in range(num_envs // 2)]
+ 
 def make_training_env(num_envs=1):
     if num_envs == 1:
         return prepare_env(
@@ -73,6 +68,7 @@ def make_training_env(num_envs=1):
             render_mode='human', # Change to 'rgb_array' when debugging finished,
         ))
     else:
+        level_dist = _compute_level_distribution(num_envs)
         create_env = lambda level: prepare_env(
             retro.make(
                 'SuperMarioWorld-Snes',
@@ -83,6 +79,6 @@ def make_training_env(num_envs=1):
         return ParallelEnv(
             num_workers=num_envs,
             create_env_fn=create_env,
-            create_env_kwargs=[{'level': state} for state in _get_level_distribution(num_envs)]
+            create_env_kwargs=[{'level': state} for state in _compute_level_distribution(num_envs)]
         )
 
