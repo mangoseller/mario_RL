@@ -13,7 +13,7 @@ class TrainingConfig:
 
     steps_per_env: int = 4096
     learning_rate: float = 1e-4
-    gamma: float = 0.9995
+    gamma: float = 0.998
     lambda_gae: float = 0.95
     epsilon_advantage: float = 1e-8
     clip_eps: float = 0.2
