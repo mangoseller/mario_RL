@@ -90,7 +90,7 @@ def make_training_env(num_envs=1, **level_kwargs):
         ))
     else:
         if num_envs == 28:
-            level_dist = compute_level_distribution(num_envs, level1='YoshiIsland2', level2='DonutPlains1', level3='DonutPlains4')
+            level_dist = compute_level_distribution(num_envs, level1='YoshiIsland2', level2='DonutPlains1', level3='DonutPlains3')
         else:
             level_dist = compute_level_distribution(num_envs)
         create_env = lambda level: prepare_env(
@@ -105,3 +105,5 @@ def make_training_env(num_envs=1, **level_kwargs):
             create_env_fn=create_env,
             create_env_kwargs=[{'level': state} for state in level_dist]
         )
+
+

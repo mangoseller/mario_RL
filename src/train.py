@@ -124,7 +124,7 @@ def training_loop(agent, config, num_eval_episodes=5, checkpoint_path=None, resu
     else:
         env.close()
     # Perform final evaluation and store last weights
-    run_evaluation(agent.__class__, policy, step, tracking, config, run, num_eval_episodes)
+    run_evaluation(agent.__class__, policy, tracking, config, run, step, num_eval_episodes)
     save_checkpoint(agent, tracking, config, step, run, step)
     
     if config.USE_WANDB:

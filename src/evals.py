@@ -11,9 +11,13 @@ from ppo import PPO
 
 EVAL_LEVELS = ['YoshiIsland2', 'YoshiIsland1', 'DonutPlains1', 'DonutPlains4']
 
-def evaluate(agent, num_episodes=9, record_dir='/evals'):
+def evaluate(agent, num_episodes=9, record_dir='/evals', levels=None):
+    if levels == 28:
+        EVAL_LEVELS = ['YoshiIsland2', 'YoshiIsland1', 'DonutPlains1', 'DonutPlains4', 'ChocolateIsland1', 'DonutPlains3']
+    else:
+        EVAL_LEVELS = ['YoshiIsland2', 'YoshiIsland1', 'DonutPlains3', 'DonutPlains1']
 
-    assert num_episodes >= 3 and num_episodes % 3 == 0, f"Number of episodes must be a multiple of 3, got {num_episodes}"
+
     episodes_per_level = num_episodes // 3
     all_rewards = []
     all_lengths = []
@@ -83,7 +87,7 @@ def _run_eval_(model, model_state_dict, config, num_episodes, record_dir, result
     agent = model().to('cpu')
     agent.load_state_dict(model_state_dict)
     eval_policy = PPO(agent, config, device="cpu")
-    metrics = evaluate(eval_policy, num_episodes, record_dir)
+    metrics = evaluate(eval_policy, num_episodes, record_dir, config.num_envs)
     result_queue.put(metrics)
 
 
