@@ -60,7 +60,6 @@ def run_training():
 # Import train functions here to avoid circular imports
     from train import train, finetune
     
-    print(f"Starting {args.mode} with {model.__name__} using {config.architecture} config")
     
     if args.mode == 'finetune':
         finetune(model, args.checkpoint, config, args.num_eval_episodes)

@@ -48,9 +48,9 @@ def training_loop(agent, config, num_eval_episodes=5, checkpoint_path=None):
     policy, buffer, env, environment, state = init_training(agent, config, device)
     
     if device == "cuda":
-        print("Training on GPU")
+        print(f"Training {config.architecture} on GPU")
     else:
-        print("Training on CPU")
+        print(f"Training {config.architecture} on CPU")
     
     tracking = init_tracking(config)
     pbar = tqdm(range(config.num_training_steps), disable=not config.show_progress)
@@ -143,4 +143,5 @@ def finetune(model, checkpoint_path, config, num_eval_episodes=9):
 
 if __name__ == "__main__":
     run_training()
+
 
