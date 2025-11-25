@@ -1,0 +1,20 @@
+{
+  "crop": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "done": {
+    "variables": {
+      "level_complete": {
+        "op": "not-equal",
+        "reference": 80
+      },
+      "lives": {
+        "measurement": "delta",
+        "op": "less-than"
+      }
+    }
+  }
+}
