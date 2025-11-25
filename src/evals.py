@@ -9,7 +9,7 @@ from environment import prepare_env
 from utils import get_torch_compatible_actions, readable_timestamp
 from ppo import PPO
 
-EVAL_LEVELS = ['YoshiIsland2', 'YoshiIsland1', 'DonutPlains1']
+EVAL_LEVELS = ['YoshiIsland2', 'YoshiIsland1', 'DonutPlains1', 'DonutPlains4']
 
 def evaluate(agent, num_episodes=9, record_dir='/evals'):
 

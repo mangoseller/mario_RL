@@ -16,7 +16,7 @@ from torchvision.transforms import InterpolationMode
 
 DEFAULT_LEVELS = {
     'level1': 'YoshiIsland2',
-    'level2': 'DonutPlains1',
+    'level2': 'DonutPlains4',
 }
 
 MARIO_ACTIONS = [
