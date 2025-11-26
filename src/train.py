@@ -49,6 +49,7 @@ def training_loop(agent, config, num_eval_episodes=5, checkpoint_path=None, resu
         start_step, tracking = setup_from_checkpoint(checkpoint_path, agent, policy, config, device, resume)
     else:
         tracking = init_tracking(config)
+        start_step = 0
     param = 0
     for name, p in agent.named_parameters():
         param += p.numel()

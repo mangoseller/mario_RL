@@ -85,12 +85,12 @@ def make_training_env(num_envs=1, **level_kwargs):
         return prepare_env(
             retro.make(
             'SuperMarioWorld-Snes',
-            state='DonutPlains5', # YoshiIsland2
+            state='Bridges2', # YoshiIsland2
             render_mode='human', # Change to 'rgb_array' when debugging finished,
         ))
     else:
         if num_envs == 28:
-            level_dist = compute_level_distribution(num_envs, level1='YoshiIsland2', level2='DonutPlains1', level3='DonutPlains3')
+            level_dist = compute_level_distribution(num_envs, level1='YoshiIsland2', level2='DonutPlains1', level3='DonutPlains4', level4='DonutPlains5')
         else:
             level_dist = compute_level_distribution(num_envs)
         create_env = lambda level: prepare_env(

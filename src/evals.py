@@ -13,7 +13,7 @@ EVAL_LEVELS = ['YoshiIsland2', 'YoshiIsland1', 'DonutPlains1', 'DonutPlains4']
 
 def evaluate(agent, num_episodes=9, record_dir='./evals', levels=None):
     if levels == 28:
-        EVAL_LEVELS = ['YoshiIsland2', 'YoshiIsland1', 'DonutPlains1', 'DonutPlains4', 'ChocolateIsland1', 'DonutPlains3']
+        EVAL_LEVELS = ['YoshiIsland2', 'YoshiIsland1', 'DonutPlains1', 'DonutPlains4', 'ChocolateIsland1', 'DonutPlains5']
     else:
         EVAL_LEVELS = ['YoshiIsland2', 'YoshiIsland1', 'DonutPlains4', 'DonutPlains1', 'ChocolateIsland1',]
 
