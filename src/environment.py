@@ -16,7 +16,7 @@ from torchvision.transforms import InterpolationMode
 
 DEFAULT_LEVELS = {
     'level1': 'YoshiIsland2',
-    'level2': 'DonutPlains4',
+    'level2': 'YoshiIsland3',
 }
 
 MARIO_ACTIONS = [
@@ -85,7 +85,7 @@ def make_training_env(num_envs=1, **level_kwargs):
         return prepare_env(
             retro.make(
             'SuperMarioWorld-Snes',
-            state='Bridges2', # YoshiIsland2
+            state='YoshiIsland3', # YoshiIsland2
             render_mode='human', # Change to 'rgb_array' when debugging finished,
         ))
     else:

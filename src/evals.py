@@ -9,13 +9,13 @@ from environment import prepare_env
 from utils import get_torch_compatible_actions, readable_timestamp
 from ppo import PPO
 
-EVAL_LEVELS = ['YoshiIsland2', 'YoshiIsland1', 'DonutPlains1', 'DonutPlains4']
+
 
 def evaluate(agent, num_episodes=9, record_dir='./evals', levels=None):
     if levels == 28:
-        EVAL_LEVELS = ['YoshiIsland2', 'YoshiIsland1', 'DonutPlains1', 'DonutPlains4', 'ChocolateIsland1', 'DonutPlains5']
+        EVAL_LEVELS = ['YoshiIsland2', 'YoshiIsland3', 'DonutPlains1', 'DonutPlains4', 'ChocolateIsland1', 'DonutPlains5']
     else:
-        EVAL_LEVELS = ['YoshiIsland2', 'YoshiIsland1', 'DonutPlains4', 'DonutPlains1', 'ChocolateIsland1',]
+        EVAL_LEVELS = ['YoshiIsland2', 'YoshiIsland3', 'DonutPlains4', 'DonutPlains1', 'ChocolateIsland1']
 
 
     episodes_per_level = num_episodes // 3

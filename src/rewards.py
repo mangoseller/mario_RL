@@ -2,8 +2,8 @@ import gymnasium as gym
 
 
 REWARD_CONFIG = {
-    'movement_reward': 0.01,
-    'step_penalty': 0.001,
+    'movement_reward': 0.025,
+    'step_penalty': 0.0025,
     'damage_penalty': 1,
     'life_loss_penalty': 5.0,
     'max_steps_penalty': 15.0,
@@ -161,7 +161,6 @@ class LevelCompleteReward:
     
     def calculate(self, info):
         level_complete = info.get('level_complete', 80)
-        print(level_complete)
         if level_complete != 80:
             return self.reward
         return 0.0

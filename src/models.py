@@ -3,6 +3,30 @@ import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
 from einops import repeat
+
+
+# Provide spatial information to the model
+class CoordConv(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        b, c, h, w = x.shape
+
+        y_range = t.arange(h, device=x.device, dtype=t.float32)
+        x_range = t.arange(w, device=x.device, dtype=t.float32)
+        # Create coordinate grids
+        y_coords = repeat(y_range, 'h -> h w', w=w)
+        y_coords = 2.0 * y_coords / (h - 1.0) - 1.0
+
+        x_coords = repeat(x_range, 'w -> h w', h=h)
+        x_coords = 2.0 * x_coords / (w - 1.0) - 1.0 
+
+        coords = t.stack([y_coords, x_coords], dim=0).to(x.device) # (2, h, w)
+        coords = repeat(coords, 'two h w -> b two h w', b=b)
+
+        return t.cat([x, coords], dim=1)
+
 class ResidualBlock(nn.Module):
 
     def __init__(self, channels):
@@ -172,40 +196,66 @@ class ImpalaLarge(nn.Module):
     
 class ImpalaLike(nn.Module):
 
-    def __init__(self, num_actions=14):
+    def __init__(self, num_actions=14, dropout=0.1):
         super().__init__()
         
         self.aug = RandomShifts(pad=4)
-        self.block1 = ModelBlock(4, 16, num_residual=1)
-        self.block2 = ModelBlock(16, 32, num_residual=1)
-        self.block3 = ModelBlock(32, 64, num_residual=2)
+        self.coord_conv = CoordConv()
+
+
+        self.block1 = ModelBlock(6, 32, num_residual=2)
+        self.block2 = ModelBlock(32, 64, num_residual=2)
+        self.block3 = ModelBlock(64, 128, num_residual=2)
         
-        self.reduce = nn.Conv2d(64, 16, kernel_size=1)
-        self.flatten = nn.Flatten()
+        self.embed_dim = 128
+        self.pool_norm = nn.LayerNorm(self.embed_dim)
+        self.pool_query = nn.Parameter(t.randn(1, 1, self.embed_dim) * 0.02)
+        self.pool_attn = nn.MultiheadAttention(
+            embed_dim=self.embed_dim,
+            num_heads=4,
+            batch_first=True,
+            dropout=dropout
+        )
 
+        self.trunk = nn.Sequential(
+            nn.Linear(self.embed_dim, 512),
+            nn.LayerNorm(512),
+            nn.SiLU(),
 
-        self.fc = nn.Linear(1936, 512)
-        self.ln = nn.LayerNorm(512)
+        )
+        self.policy_head = nn.Sequential(
+            nn.Linear(512, 256),
+            nn.SiLU(),
+            nn.Linear(256, num_actions)
+        )
+        self.value_head = nn.Sequential(
+            nn.Linear(512, 256),
+            nn.SiLU(),
+            nn.Linear(256, 1)
+        )
 
-
-        self.policy_head = nn.Linear(512, num_actions)
-        self.value_head = nn.Linear(512, 1)
 
         self._initialize_weights()
 
     def forward(self, x):
-        x = self.aug(x)
-        x = self.block1(x)
+        x = self.aug(x) # Aug
+        x = self.coord_conv(x) # Add spatial info
+
+        x = self.block1(x) # Convolutional Blocks
         x = self.block2(x)
         x = self.block3(x)
-        x = F.silu(self.reduce(x))
-        
-        x = self.flatten(x)
-        x = F.silu(self.fc(x))
-        x = self.ln(x)
 
+        # Attention
+        b, c, h, w = x.shape
+        x = x.view(b, c, h * w).permute(0, 2, 1)
+        x = self.pool_norm(x)
+
+        q = self.pool_query.expand(b, -1, -1)
+        x, _ = self.pool_attn(q, x, x)
+        x = x.squeeze(1)
+
+        x = self.trunk(x)
         return self.policy_head(x), self.value_head(x)
-
     def _initialize_weights(self):
 
         for m in self.modules():
@@ -214,8 +264,8 @@ class ImpalaLike(nn.Module):
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
 
-        nn.init.orthogonal_(self.policy_head.weight, gain=0.01)
-        nn.init.orthogonal_(self.value_head.weight, gain=1.0)
+        nn.init.orthogonal_(self.policy_head[-1].weight, gain=0.01)
+        nn.init.orthogonal_(self.value_head[-1].weight, gain=1.0)
 
 
 class ConvolutionalSmall(nn.Module):
