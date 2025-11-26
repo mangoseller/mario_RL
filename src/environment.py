@@ -107,3 +107,34 @@ def make_training_env(num_envs=1, **level_kwargs):
         )
 
 
+def make_curriculum_env(num_envs, level_distribution):
+    """Create training environment with a specific level distribution.
+    
+    Args:
+        num_envs: Number of parallel environments
+        level_distribution: List of level names (e.g., ['YoshiIsland2', 'YoshiIsland2', 'YoshiIsland3'])
+    
+    Returns:
+        Configured environment(s)
+    """
+    if num_envs == 1:
+        # Single env uses first level in distribution
+        return prepare_env(
+            retro.make(
+                'SuperMarioWorld-Snes',
+                state=level_distribution[0],
+                render_mode='human',
+            ))
+    else:
+        create_env = lambda level: prepare_env(
+            retro.make(
+                'SuperMarioWorld-Snes',
+                state=level,
+                render_mode='rgb_array'
+            )
+        )
+        return ParallelEnv(
+            num_workers=num_envs,
+            create_env_fn=create_env,
+            create_env_kwargs=[{'level': state} for state in level_distribution]
+        )

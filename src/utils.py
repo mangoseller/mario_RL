@@ -71,7 +71,8 @@ def log_training_metrics(tracking, diagnostics, policy, config, step):
         'loss/total': diagnostics['total_loss'],
         'loss/policy': diagnostics['policy_loss'],
         'loss/value': diagnostics['value_loss'],
-        
+        'loss/pixel_control': diagnostics['pixel_control_loss'],
+
         'diagnostics/entropy': diagnostics['entropy'],
         'diagnostics/clip_fraction': diagnostics['clip_fraction'],
         'diagnostics/approx_kl': diagnostics['approx_kl'],
@@ -234,3 +235,39 @@ def setup_from_checkpoint(checkpoint_path, agent, policy, config, device, resume
             agent.load_state_dict(weights)
 
         return 0, init_tracking(config)
+
+def compute_pixel_change_targets(observations, cell_size=12, device='cuda'): # TODO: Fix this
+    """
+    Compute spatial pixel changes from consecutive frames
+    
+    Args:
+        observations: (T, C, H, W) tensor of observations (already on device)
+        cell_size: Size of spatial cells (84/12 = 7x7 grid)
+    
+    Returns:
+        targets: (T-1, grid_h, grid_w) tensor of pixel changes
+    """
+    # Ensure on correct device
+    observations = observations.to(device)
+    
+    # Split into current and next
+    current = observations[:-1]  # All but last
+    next_obs = observations[1:]   # All but first
+    
+    # Compute absolute difference, average over channel dimension
+    diff = t.abs(next_obs - current).mean(dim=1)  # (T-1, H, W)
+    
+    # Add channel dimension for pooling
+    diff = diff.unsqueeze(1)  # (T-1, 1, H, W)
+    
+    h, w = diff.shape[2], diff.shape[3]
+    grid_h = h // cell_size
+    grid_w = w // cell_size
+    
+    # Crop to exact multiple of cell_size
+    diff = diff[:, :, :grid_h*cell_size, :grid_w*cell_size]
+    
+    # Average pool to grid
+    targets = t.nn.functional.avg_pool2d(diff, kernel_size=cell_size, stride=cell_size)
+    
+    return targets.squeeze(1)  # (T-1, grid_h, grid_w)

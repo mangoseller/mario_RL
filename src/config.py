@@ -24,7 +24,7 @@ class TrainingConfig:
     min_lr: float = 1e-6
     USE_WANDB: bool = False
     wandb_project: str = 'marioRL'
-    
+    use_curriculum: bool = False
     
     @property
     def buffer_size(self):
@@ -73,8 +73,8 @@ class TrainingConfig:
         return cls(**config_dict)
 
 
-IMPALA_LARGE_TRAIN_CONFIG = TrainingConfig(
-    architecture='ImpalaLarge',
+TRANSPALA_TRAIN_CONFIG = TrainingConfig(
+    architecture='TransPala',
     lr_schedule='linear',
     learning_rate=1.5e-4,
     min_lr=1e-6,
@@ -93,8 +93,8 @@ IMPALA_LARGE_TRAIN_CONFIG = TrainingConfig(
     USE_WANDB=True
 )
 
-IMPALA_LARGE_TUNE_CONFIG = TrainingConfig(
-    architecture='ImpalaLarge',
+TRANSPALA_TUNE_CONFIG = TrainingConfig(
+    architecture='TransPala',
     lr_schedule='linear',
     learning_rate=2e-5,
     min_lr=1e-6,
@@ -113,8 +113,8 @@ IMPALA_LARGE_TUNE_CONFIG = TrainingConfig(
     USE_WANDB=True
 )
 
-IMPALA_LARGE_TEST_CONFIG = TrainingConfig(
-    architecture='ImpalaLarge',
+TRANSPALA_TEST_CONFIG = TrainingConfig(
+    architecture='TransPala',
     lr_schedule='linear',
     learning_rate=1.5e-4,
     min_lr=1e-6,

@@ -2,13 +2,12 @@ import torch as t
 from torch.distributions import Categorical
 import numpy as np
 
-
 class PPO:
     def __init__(self, model, config, device):
         self.model = model
         self.config = config
         self.device = device
-        self.optimizer = t.optim.Adam(model.parameters(), lr=config.learning_rate)
+        self.optimizer = t.optim.Adam(model.parameters(), lr=config.learning_rate, eps=1e-5)
         self.eps = config.clip_eps
         self.c1 = config.c1
         self.c2 = config.c2    
@@ -33,15 +32,16 @@ class PPO:
 
     @t.inference_mode()
     def action_selection(self, states):
-        self.model.eval() # No dropout
+        self.model.eval() 
 
         states = states.to(self.device)
         if states.dim() == 3:
             states = states.unsqueeze(0)
 
+        # Standard forward pass for action selection (no pixel control needed here)
         state_logits, value = self.model(states)
-        logits = state_logits  
-        distributions = Categorical(logits=logits)
+        
+        distributions = Categorical(logits=state_logits)
         actions = distributions.sample()
         log_probs = distributions.log_prob(actions)
 
@@ -64,15 +64,22 @@ class PPO:
             'explained_variance': explained_var.item(),
         }
     
-    def compute_loss(self, states, actions, old_log_probs, advantages, returns):
-        # Compute PPO loss
+    def compute_loss(self, states, actions, old_log_probs, advantages, returns, pixel_targets=None, pixel_loss_weight=0.1):
         states = states.to(self.device)
         actions = actions.to(self.device)
         old_log_probs = old_log_probs.to(self.device)
         advantages = advantages.to(self.device)
         returns = returns.to(self.device)
+        
+        # Handle models with and without pixel control support
+        if pixel_targets is not None:
+            # Model returns: policy, value, pixel_pred
+            logits, values, pixel_pred = self.model(states, return_pixel_control=True)
+            pixel_targets = pixel_targets.to(self.device)
+        else:
+            # Standard return
+            logits, values = self.model(states)
 
-        logits, values = self.model(states)
         distributions = Categorical(logits=logits)
         new_log_probs = distributions.log_prob(actions)
 
@@ -87,25 +94,38 @@ class PPO:
         policy_loss = -t.mean(min_ratio) 
         entropy_loss = distributions.entropy().mean()
         value_loss = t.mean((values.squeeze() - returns)**2)
-        total_loss = policy_loss + (self.c1 * value_loss) + (self.c2 * -entropy_loss)
+
+        # Pixel control loss (Auxiliary Task)
+        if pixel_targets is not None:
+            # MSE Loss: Targets are positive (abs diff), PixelHead uses Softplus (positive)
+            pixel_control_loss = t.nn.functional.mse_loss(pixel_pred, pixel_targets)
+        else:
+            pixel_control_loss = t.tensor(0.0, device=self.device)
+        
+        total_loss = (policy_loss + 
+                    (self.c1 * value_loss) + 
+                    (self.c2 * -entropy_loss) +
+                    (pixel_loss_weight * pixel_control_loss))
 
         diagnostics = self._compute_diagnostics(ratio, values, returns)
         diagnostics.update({
             'policy_loss': policy_loss.item(),
             'value_loss': value_loss.item(),
             'entropy': entropy_loss.item(),
+            'pixel_control_loss': pixel_control_loss.item()
         })
         
         return total_loss, diagnostics
 
-    def compute_advantages(self, buffer, next_state=None): #TODO: Comment this a lot better
+    def compute_advantages(self, buffer, next_state=None):
         # Compute GAE advantages and returns
         gamma = self.config.gamma
         lambda_ = self.config.lambda_gae
         _, rewards, _, _, values, dones = buffer.get()
-        assert all(i.shape == (rewards.shape[0],) for i in [rewards, values, dones]), "Tensors are of unexpected shape!"
+        
         values = values.detach()       
 
+        # Reshape to (Batch, Num_Envs) for GAE calculation
         reshape = lambda tensor: tensor.view(len(buffer), buffer.rewards.shape[1])
         rewards = reshape(rewards)
         values = reshape(values)
@@ -115,7 +135,10 @@ class PPO:
 
         if next_state is not None:
             with t.no_grad():
-                _, last_values = self.model(next_state.to(self.device))
+                # Handle next state value estimation without pixel control
+                out = self.model(next_state.to(self.device))
+                # Handle tuple return if model defaults to returning tuple (unlikely based on implementation but safe)
+                last_values = out[1] if isinstance(out, tuple) else out
                 last_values = last_values.squeeze(-1)
         else:
             last_values = t.zeros(buffer.rewards.shape[1], device=self.device)
@@ -132,20 +155,65 @@ class PPO:
             gaes = delta + gamma * lambda_ * (1 - dones[i]) * gaes
             advantages[i] = gaes
 
+        # Flatten back to match buffer storage
         advantages = advantages.view(-1)
         values = values.view(-1)
         returns = advantages + values
         return advantages, returns
 
     def update(self, buffer, config, eps=1e-8, next_state=None):
-        # Perform a PPO update 
+        from utils import compute_pixel_change_targets
+        
         self.model.train()
         minibatch_size = config.minibatch_size
         num_epochs = config.epochs
-        advantages, returns = self.compute_advantages(buffer, next_state=next_state)
-        normalized_advantages = (advantages - advantages.mean()) / (advantages.std() + eps)
+        
+        # Get flattened buffer data
         states, _, actions, log_probs, _, _ = buffer.get()
         
+        # Compute advantages 
+        advantages, returns = self.compute_advantages(buffer, next_state=next_state)
+        normalized_advantages = (advantages - advantages.mean()) / (advantages.std() + eps)
+        
+        # Check if model supports pixel control
+        use_pixel_control = hasattr(self.model, 'pixel_control_head')
+        
+        pixel_targets = None
+        
+        if use_pixel_control:
+            # Reconstruct (Time, Env) structure to compute temporal differences
+            buffer_len = buffer.capacity
+            num_envs = buffer.rewards.shape[1]
+            
+            # (Time * Env, ...) -> (Time, Env, ...)
+            states_reshaped = states.view(buffer_len, num_envs, *states.shape[1:])
+            
+            pixel_targets_list = []
+            for env_idx in range(num_envs):
+                env_states = states_reshaped[:, env_idx]  # (Time, C, H, W)
+                # Compute targets (returns Time-1)
+                env_pixel_targets = compute_pixel_change_targets(
+                    env_states, cell_size=12, device=self.device
+                ) 
+                pixel_targets_list.append(env_pixel_targets)
+            
+            # Stack results: (Env, Time-1, 7, 7) -> (Time-1, Env, 7, 7)
+            pixel_targets = t.stack(pixel_targets_list, dim=0)
+            pixel_targets = pixel_targets.permute(1, 0, 2, 3).reshape(-1, 7, 7)
+            
+            # We must trim the training data to match pixel targets length (Time - 1)
+            # Since buffer is flattened Time-Major (t0e0, t0e1... t1e0, t1e1...), 
+            # removing the last `num_envs` items removes the last timestep T.
+            states = states[:-num_envs]
+            actions = actions[:-num_envs]
+            log_probs = log_probs[:-num_envs]
+            normalized_advantages = normalized_advantages[:-num_envs]
+            returns = returns[:-num_envs]
+            
+            assert states.shape[0] == pixel_targets.shape[0], \
+                f"Shape mismatch: States {states.shape[0]} != Targets {pixel_targets.shape[0]}"
+
+        # Initialize diagnostics tracking
         total_losses = []
         all_diagnostics = {
             'policy_loss': [],
@@ -154,29 +222,44 @@ class PPO:
             'clip_fraction': [],
             'approx_kl': [],
             'explained_variance': [],
+            'pixel_control_loss': [],
         }
         
+        # Mini-batch Updates
         for _ in range(1, num_epochs+1):
-            permuted_indices = t.randperm(states.shape[0]) 
-            states = states[permuted_indices]
-            actions = actions[permuted_indices]
-            log_probs = log_probs[permuted_indices]
-            advantages = normalized_advantages[permuted_indices]
-            returns = returns[permuted_indices]
+            indices = t.randperm(states.shape[0])
+            
+            # Shuffle data
+            states_shuffled = states[indices]
+            actions_shuffled = actions[indices]
+            log_probs_shuffled = log_probs[indices]
+            advantages_shuffled = normalized_advantages[indices]
+            returns_shuffled = returns[indices]
+            
+            pixel_targets_shuffled = None
+            if use_pixel_control:
+                pixel_targets_shuffled = pixel_targets[indices]
 
             for start_idx in range(0, states.shape[0], minibatch_size):
                 end_idx = min(start_idx + minibatch_size, states.shape[0])
-                mb_states = states[start_idx:end_idx]
-                mb_actions = actions[start_idx:end_idx]
-                mb_log_probs = log_probs[start_idx:end_idx]
-                mb_advantages = advantages[start_idx:end_idx]
-                mb_returns = returns[start_idx:end_idx]
-
-                loss, diagnostics = self.compute_loss(
-                    mb_states, mb_actions, mb_log_probs, mb_advantages, mb_returns
-                )
-                total_losses.append(loss.item())
                 
+                mb_states = states_shuffled[start_idx:end_idx]
+                mb_actions = actions_shuffled[start_idx:end_idx]
+                mb_log_probs = log_probs_shuffled[start_idx:end_idx]
+                mb_advantages = advantages_shuffled[start_idx:end_idx]
+                mb_returns = returns_shuffled[start_idx:end_idx]
+                
+                mb_pixel_targets = None
+                if use_pixel_control:
+                    mb_pixel_targets = pixel_targets_shuffled[start_idx:end_idx]
+
+                # Compute loss
+                loss, diagnostics = self.compute_loss(
+                    mb_states, mb_actions, mb_log_probs, mb_advantages, mb_returns,
+                    pixel_targets=mb_pixel_targets
+                )
+                
+                total_losses.append(loss.item())
                 for key, value in diagnostics.items():
                     all_diagnostics[key].append(value)
 
@@ -189,7 +272,7 @@ class PPO:
             self.scheduler.step()
         
         averaged_diagnostics = {
-            key: np.mean(values) for key, values in all_diagnostics.items()
+            key: np.mean(values) if values else 0.0 for key, values in all_diagnostics.items()
         }
         averaged_diagnostics['total_loss'] = np.mean(total_losses)
         
