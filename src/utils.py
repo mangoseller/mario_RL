@@ -4,18 +4,28 @@ import os
 import wandb
 from ppo import PPO
 from buffer import RolloutBuffer
-from environment import make_training_env
+from environment import make_env
 from datetime import datetime
 
 
 def readable_timestamp():
     return datetime.now().strftime("%H-%M_%d-%m-%y")
 
+
 def init_training(agent, config, device):
-    # Initialize PPO policy, buffer, environment, and get initial state
+    """
+    Initialize PPO policy, buffer, environment, and get initial state.
+    
+    Note: For curriculum learning, use init_training_components() from train.py instead.
+    """
     policy = PPO(agent, config, device)   
     buffer = RolloutBuffer(config.buffer_size // config.num_envs, config.num_envs, device)
-    env = make_training_env(num_envs=config.num_envs)
+    
+    env = make_env(
+        num_envs=config.num_envs,
+        render_human=(config.num_envs == 1),
+    )
+    
     environment = env.reset()
     state = environment['pixels']
     if config.num_envs == 1 and state.dim() == 3:
@@ -25,7 +35,7 @@ def init_training(agent, config, device):
 
 
 def init_tracking(config):
-    # Initialize tracking dictionary for training metrics
+    """Initialize tracking dictionary for training metrics."""
     return {
         'current_episode_rewards': [0.0] * config.num_envs,
         'current_episode_lengths': [0] * config.num_envs,
@@ -41,7 +51,7 @@ def init_tracking(config):
 
 
 def update_episode_tracking(tracking, config, rewards, dones):
-    # Update per-environment episode tracking
+    """Update per-environment episode tracking."""
     for i in range(config.num_envs):
         tracking['current_episode_rewards'][i] += rewards[i].item()
         tracking['current_episode_lengths'][i] += 1
@@ -53,8 +63,9 @@ def update_episode_tracking(tracking, config, rewards, dones):
             tracking['current_episode_lengths'][i] = 0
             tracking['episode_num'] += 1
 
+
 def log_training_metrics(tracking, diagnostics, policy, config, step):
-    # Log training metrics to wandb or console
+    """Log training metrics to wandb or console."""
     if len(tracking['completed_rewards']) > 0:
         mean_reward = np.mean(tracking['completed_rewards'])
         mean_length = np.mean(tracking['completed_lengths'])
@@ -86,10 +97,12 @@ def log_training_metrics(tracking, diagnostics, policy, config, step):
     if config.USE_WANDB:
         wandb.log(metrics, step=step)
 
-def save_checkpoint(agent, policy, tracking, config, run, step):
 
+def save_checkpoint(agent, policy, tracking, config, run, step):
+    """Save model checkpoint and optionally log to wandb."""
     checkpoint_dir = "model_checkpoints"
     os.makedirs(checkpoint_dir, exist_ok=True)
+    
     checkpoint = {
         'model_state_dict': agent.state_dict(),
         'optimizer_state_dict': policy.optimizer.state_dict(),
@@ -102,7 +115,7 @@ def save_checkpoint(agent, policy, tracking, config, run, step):
             'learning_rate': config.learning_rate,
             'min_lr': config.min_lr,
             'lr_schedule': config.lr_schedule,
-            'c2': config.c2,  # Max entropy for decay calculation
+            'c2': config.c2,
         }
     }
 
@@ -110,17 +123,16 @@ def save_checkpoint(agent, policy, tracking, config, run, step):
     t.save(checkpoint, model_path)
 
     if config.USE_WANDB:
-
         artifact = wandb.Artifact(f"marioRLep{tracking['episode_num']}", type="model")
         artifact.add_file(model_path)
         run.log_artifact(artifact)
     
     tracking['last_checkpoint'] = step
-
     return model_path
 
+
 def load_checkpoint(checkpoint_path, agent, policy, device):
-    
+    """Load model and optimizer state from checkpoint."""
     checkpoint = t.load(checkpoint_path, map_location=device)
     agent.load_state_dict(checkpoint['model_state_dict'])
     policy.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
@@ -138,84 +150,22 @@ def load_checkpoint(checkpoint_path, agent, policy, device):
     
     return start_step, tracking
 
-def handle_env_resets(env, environment, next_state, terminated, num_envs): # TODO: Fix this up
-
-    if num_envs == 1:
-        # Single environment case
-        if terminated.item():
-            environment = env.reset()
-            state = environment["pixels"]
-            # Ensure correct shape [1, C, H, W]
-            if state.dim() == 3:
-                state = state.unsqueeze(0)
-        else:
-            state = next_state
-    else:
-        # Parallel environments case
-        # Extract done mask: [num_envs]
-        done_mask = terminated.squeeze(-1) if terminated.dim() > 1 else terminated
-        
-        if done_mask.any():
-            # Get the device of the environment
-            env_device = next_state.device
-            
-            # Create a TensorDict with _reset key for done environments
-            reset_td = environment.clone()
-            
-            # Ensure done_mask is on the same device as environment
-            done_mask = done_mask.to(env_device)
-            
-            # Set _reset with shape [num_envs, 1] as expected by TorchRL
-            reset_td["_reset"] = done_mask.unsqueeze(-1)
-            
-            # Move reset_td to CPU for the reset operation (ParallelEnv expects CPU)
-            reset_td = reset_td.to('cpu')
-            
-            # Reset only the done environments
-            reset_output = env.reset(reset_td)
-            
-            # Move reset output back to original device
-            reset_output = reset_output.to(env_device)
-            
-            # Get the pixels from the reset output
-            reset_pixels = reset_output["pixels"]
-            
-            # Ensure all tensors are on the same device for the where operation
-            done_mask = done_mask.to(env_device)
-            reset_pixels = reset_pixels.to(env_device)
-            next_state = next_state.to(env_device)
-            
-            # Update state: use reset pixels for done envs, next_state for others
-            # Broadcast done_mask to match pixel dimensions [num_envs, C, H, W]
-            state = t.where(
-                done_mask.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1),
-                reset_pixels,
-                next_state
-            )
-            
-            # Update environment reference for consistency
-            environment = reset_output
-        else:
-            state = next_state
-    
-    return state, environment
-
-
-def get_torch_compatible_actions(actions, num_actions=14): 
-    # Convert integer actions into one-hot format for torchrl
-    onehot_actions = t.nn.functional.one_hot(actions, num_classes=num_actions).float()
-    return onehot_actions
-
-
-def get_entropy(step, total_steps, max_entropy=0.02, min_entropy=0.005):
-    # Linearly decay entropy over training 
-       progress = step / total_steps
-       current_entropy = max_entropy - (max_entropy - min_entropy) * progress
-       return current_entropy
-
 
 def setup_from_checkpoint(checkpoint_path, agent, policy, config, device, resume=False):
-
+    """
+    Setup training state from checkpoint.
+    
+    Args:
+        checkpoint_path: Path to checkpoint file
+        agent: Model to load weights into
+        policy: PPO policy (optimizer/scheduler will be loaded if resuming)
+        config: Training config
+        device: Torch device
+        resume: If True, load full state. If False, only load model weights.
+    
+    Returns:
+        Tuple of (start_step, tracking_dict)
+    """
     if checkpoint_path is None:
         return 0, init_tracking(config)
     
@@ -233,31 +183,82 @@ def setup_from_checkpoint(checkpoint_path, agent, policy, config, device, resume
             agent.load_state_dict(weights['model_state_dict'])
         else:
             agent.load_state_dict(weights)
-
         return 0, init_tracking(config)
 
-def compute_pixel_change_targets(observations, cell_size=12, device='cuda'): # TODO: Fix this
+
+def handle_env_resets(env, environment, next_state, terminated, num_envs):
     """
-    Compute spatial pixel changes from consecutive frames
+    Handle environment resets for terminated episodes.
+    
+    For parallel envs, only resets the environments that are done.
+    """
+    if num_envs == 1:
+        if terminated.item():
+            environment = env.reset()
+            state = environment["pixels"]
+            if state.dim() == 3:
+                state = state.unsqueeze(0)
+        else:
+            state = next_state
+    else:
+        done_mask = terminated.squeeze(-1) if terminated.dim() > 1 else terminated
+        
+        if done_mask.any():
+            env_device = next_state.device
+            reset_td = environment.clone()
+            done_mask = done_mask.to(env_device)
+            reset_td["_reset"] = done_mask.unsqueeze(-1)
+            reset_td = reset_td.to('cpu')
+            reset_output = env.reset(reset_td)
+            reset_output = reset_output.to(env_device)
+            reset_pixels = reset_output["pixels"]
+            done_mask = done_mask.to(env_device)
+            reset_pixels = reset_pixels.to(env_device)
+            next_state = next_state.to(env_device)
+            
+            state = t.where(
+                done_mask.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1),
+                reset_pixels,
+                next_state
+            )
+            environment = reset_output
+        else:
+            state = next_state
+    
+    return state, environment
+
+
+def get_torch_compatible_actions(actions, num_actions=14): 
+    """Convert integer actions into one-hot format for torchrl."""
+    onehot_actions = t.nn.functional.one_hot(actions, num_classes=num_actions).float()
+    return onehot_actions
+
+
+def get_entropy(step, total_steps, max_entropy=0.02, min_entropy=0.005):
+    """Linearly decay entropy coefficient over training."""
+    progress = step / total_steps
+    current_entropy = max_entropy - (max_entropy - min_entropy) * progress
+    return current_entropy
+
+
+def compute_pixel_change_targets(observations, cell_size=12, device='cuda'):
+    """
+    Compute spatial pixel changes from consecutive frames for auxiliary task.
     
     Args:
-        observations: (T, C, H, W) tensor of observations (already on device)
+        observations: (T, C, H, W) tensor of observations
         cell_size: Size of spatial cells (84/12 = 7x7 grid)
     
     Returns:
-        targets: (T-1, grid_h, grid_w) tensor of pixel changes
+        targets: (T-1, grid_h, grid_w) tensor of pixel change magnitudes
     """
-    # Ensure on correct device
     observations = observations.to(device)
     
-    # Split into current and next
-    current = observations[:-1]  # All but last
-    next_obs = observations[1:]   # All but first
+    current = observations[:-1]
+    next_obs = observations[1:]
     
-    # Compute absolute difference, average over channel dimension
+    # Absolute difference averaged over channels
     diff = t.abs(next_obs - current).mean(dim=1)  # (T-1, H, W)
-    
-    # Add channel dimension for pooling
     diff = diff.unsqueeze(1)  # (T-1, 1, H, W)
     
     h, w = diff.shape[2], diff.shape[3]

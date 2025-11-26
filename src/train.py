@@ -1,3 +1,4 @@
+
 import warnings
 
 warnings.filterwarnings('ignore', message=".*Overwriting existing videos.*", category=UserWarning)
@@ -9,13 +10,10 @@ warnings.filterwarnings('ignore', message=".*Overwriting existing videos.*",
 
 import torch as t 
 import numpy as np
-import argparse
 from tqdm import tqdm
-from models import ConvolutionalSmall, ImpalaLike
 from evals import run_evaluation
 from runner import run_training
 from utils import (
-    init_training, 
     init_tracking, 
     update_episode_tracking,
     log_training_metrics, 
@@ -24,57 +22,68 @@ from utils import (
     get_torch_compatible_actions,
     get_entropy,
     readable_timestamp,
-    load_checkpoint,
     setup_from_checkpoint
 )
-from environment import make_curriculum_env
-
-from config import (
-    IMPALA_TRAIN_CONFIG,
-    IMPALA_TEST_CONFIG,
-    IMPALA_TUNE_CONFIG,
-    CONV_TRAIN_CONFIG,
-    CONV_TEST_CONFIG,
-    CONV_TUNE_CONFIG
-) 
+from environment import make_env
+from ppo import PPO
+from buffer import RolloutBuffer
 from curriculum import (
-    get_curriculum_phase,
-    get_phase_distribution,
-    should_change_phase,
-    get_phase_description
+    CurriculumState,
+    compute_level_distribution,
+    DEFAULT_CURRICULUM,
 )
 
-def transition_curriculum_phase(env, config, new_phase, device):
-    """Handle transition to a new curriculum phase.
-    
-    Closes the current environment and creates a new one with the updated
-    level distribution for the new phase.
-    
-    Args:
-        env: Current environment to close
-        config: Training configuration
-        new_phase: Index of the new curriculum phase
-        device: Device for tensor operations
-    
-    Returns:
-        Tuple of (new_env, environment_tensordict, initial_state)
+
+def get_env_specs(num_envs=1):
     """
-    # Close the old environment (required by stable-retro)
+    [FIX] Helper to retrieve environment specifications.
+    Creates a single dummy environment to extract specs, then closes it immediately.
+    These specs are used to initialize ParallelEnvs without triggering Retro errors.
+    """
+    print("Pre-loading environment specs...")
+    dummy_env = make_env(num_envs=1)
+    
+    specs = {
+        'observation_spec': dummy_env.observation_spec,
+        'action_spec': dummy_env.action_spec,
+        'reward_spec': dummy_env.reward_spec,
+        'done_spec': dummy_env.done_spec,
+    }
+    
+    dummy_env.close()
+    return specs
+
+
+def create_env_from_curriculum(curriculum_state, config, render_human=False, specs=None):
+    """
+    Create environment with level distribution from current curriculum phase.
+    """
+    weights = curriculum_state.get_phase_weights()
+    level_dist = compute_level_distribution(config.num_envs, weights)
+    
+    env = make_env(
+        num_envs=config.num_envs,
+        level_distribution=level_dist,
+        render_human=render_human and config.num_envs == 1,
+        specs=specs  # [FIX] Pass specs to avoid dummy creation
+    )
+    
+    return env, level_dist
+
+
+def transition_curriculum_phase(env, curriculum_state, config, device, specs=None):
+    """
+    Handle transition to a new curriculum phase.
+    """
     env.close()
     
-    # Get new level distribution for this phase
-    level_distribution = get_phase_distribution(new_phase, config.num_envs)
+    new_env, level_dist = create_env_from_curriculum(curriculum_state, config, specs=specs)
     
-    # Print the transition
     print(f"\n{'='*60}")
-    print(f"CURRICULUM TRANSITION: {get_phase_description(new_phase)}")
-    print(f"Level distribution: {level_distribution}")
+    print(f"CURRICULUM TRANSITION: {curriculum_state.get_description()}")
+    print(f"Level distribution: {level_dist}")
     print(f"{'='*60}\n")
     
-    # Create new environment with updated distribution
-    new_env = make_curriculum_env(config.num_envs, level_distribution)
-    
-    # Reset and get initial state
     environment = new_env.reset()
     state = environment['pixels']
     if config.num_envs == 1 and state.dim() == 3:
@@ -82,28 +91,33 @@ def transition_curriculum_phase(env, config, new_phase, device):
     
     return new_env, environment, state
 
-def init_curriculum_training(agent, config, device):
-    """Initialize training with curriculum learning.
-    
-    Starts with phase 0 distribution instead of default levels.
+
+def init_training_components(agent, config, device, curriculum_state=None, specs=None):
     """
-    from ppo import PPO
-    from buffer import RolloutBuffer
-    
+    Initialize all training components: policy, buffer, environment.
+    """
     policy = PPO(agent, config, device)
     buffer = RolloutBuffer(config.buffer_size // config.num_envs, config.num_envs, device)
     
-    # Get initial phase distribution
-    initial_phase = 0
-    level_distribution = get_phase_distribution(initial_phase, config.num_envs)
+    if curriculum_state is not None:
+        env, level_dist = create_env_from_curriculum(
+            curriculum_state, 
+            config, 
+            render_human=(config.num_envs == 1),
+            specs=specs
+        )
+        print(f"\n{'='*60}")
+        print(f"CURRICULUM LEARNING ENABLED")
+        print(f"Starting with: {curriculum_state.get_description()}")
+        print(f"Level distribution: {level_dist}")
+        print(f"{'='*60}\n")
+    else:
+        env = make_env(
+            num_envs=config.num_envs,
+            render_human=(config.num_envs == 1),
+            specs=specs
+        )
     
-    print(f"\n{'='*60}")
-    print(f"CURRICULUM LEARNING ENABLED")
-    print(f"Starting with: {get_phase_description(initial_phase)}")
-    print(f"Level distribution: {level_distribution}")
-    print(f"{'='*60}\n")
-    
-    env = make_curriculum_env(config.num_envs, level_distribution)
     environment = env.reset()
     state = environment['pixels']
     if config.num_envs == 1 and state.dim() == 3:
@@ -112,59 +126,71 @@ def init_curriculum_training(agent, config, device):
     return policy, buffer, env, environment, state
 
 
-def training_loop(agent, config, num_eval_episodes=5, checkpoint_path=None, resume=False):
-
+def training_loop(agent, config, num_eval_episodes=5, checkpoint_path=None, resume=False, curriculum_option=None):
+    """
+    Main training loop supporting both standard and curriculum learning.
+    """
     run = config.setup_wandb()
     device = "cuda" if t.cuda.is_available() else "cpu"
     agent = agent.to(device)
     
-    # Use curriculum initialization if enabled
+    # [FIX] Get specs once at the start to avoid "multiple emulator instances" error
+    # This prevents ParallelEnv from creating a dummy retro environment in the main process
+    env_specs = get_env_specs() if config.num_envs > 1 else None
+
+    # Initialize curriculum if enabled
+    curriculum_state = None
     if config.use_curriculum:
-        policy, buffer, env, environment, state = init_curriculum_training(agent, config, device)
-        current_phase = 0
-    else:
-        policy, buffer, env, environment, state = init_training(agent, config, device)
-        current_phase = None  # Not using curriculum
+        if curriculum_option is not None:
+            curriculum_state = CurriculumState.from_option(curriculum_option)
+        else:
+            curriculum_state = CurriculumState.from_schedule(DEFAULT_CURRICULUM)
     
+    # Initialize training components
+    policy, buffer, env, environment, state = init_training_components(
+        agent, config, device, curriculum_state, specs=env_specs
+    )
+    
+    # Handle checkpoint loading
     if checkpoint_path is not None:
-        start_step, tracking = setup_from_checkpoint(checkpoint_path, agent, policy, config, device, resume)
-        # Update curriculum phase if resuming with curriculum
-        if config.use_curriculum:
-            current_phase = get_curriculum_phase(start_step, config.num_training_steps)
-            if current_phase != 0:
-                # Need to transition to correct phase for resumed training
+        start_step, tracking = setup_from_checkpoint(
+            checkpoint_path, agent, policy, config, device, resume
+        )
+        # Sync curriculum phase if resuming
+        if curriculum_state is not None and start_step > 0:
+            # Fast-forward curriculum to correct phase
+            progress = start_step / config.num_training_steps
+            while curriculum_state.check_phase_transition(start_step, config.num_training_steps):
+                pass  # Updates internal state
+            
+            if curriculum_state.current_phase != 0:
                 env, environment, state = transition_curriculum_phase(
-                    env, config, current_phase, device
+                    env, curriculum_state, config, device, specs=env_specs
                 )
     else:
         tracking = init_tracking(config)
         start_step = 0
-        
-    param = 0
-    for name, p in agent.named_parameters():
-        param += p.numel()
-        print(name, p.numel())
-    print(f"Total Params: {param}")
-    if device == "cuda":
-        print(f"Training {config.architecture} on GPU")
-    else:
-        print(f"Training {config.architecture} on CPU")
+    
+    # Log model info
+    total_params = sum(p.numel() for p in agent.parameters())
+    print(f"Total Parameters: {total_params:,}")
+    print(f"Training {config.architecture} on {device.upper()}")
     
     pbar = tqdm(range(start_step, config.num_training_steps), disable=not config.show_progress)
     
     for step in pbar:
         # Check for curriculum phase transition
-        if config.use_curriculum and should_change_phase(step, config.num_training_steps, current_phase):
-            new_phase = get_curriculum_phase(step, config.num_training_steps)
-            env, environment, state = transition_curriculum_phase(
-                env, config, new_phase, device
-            )
-            current_phase = new_phase
-            # Clear buffer since environment changed
-            buffer.clear()
+        if curriculum_state is not None:
+            if curriculum_state.check_phase_transition(step, config.num_training_steps):
+                env, environment, state = transition_curriculum_phase(
+                    env, curriculum_state, config, device, specs=env_specs
+                )
+                buffer.clear()
         
-        policy.c2 = get_entropy(step, total_steps=config.num_training_steps, max_entropy=config.c2) 
+        # Entropy decay
+        policy.c2 = get_entropy(step, total_steps=config.num_training_steps, max_entropy=config.c2)
         
+        # Action selection and environment step
         actions, log_probs, values = policy.action_selection(state)
         environment["action"] = get_torch_compatible_actions(actions)
         environment = env.step(environment)
@@ -174,7 +200,7 @@ def training_loop(agent, config, num_eval_episodes=5, checkpoint_path=None, resu
             next_state = next_state.unsqueeze(0)
 
         rewards = environment["next"]["reward"]
-        dones = environment["next"]["done"] # Isn't Dones Terminated and Truncated? 
+        dones = environment["next"]["done"]
         trunc = environment["next"].get("truncated", t.zeros_like(dones))
         terminated = dones | trunc
         
@@ -184,7 +210,7 @@ def training_loop(agent, config, num_eval_episodes=5, checkpoint_path=None, resu
             if dones.dim() == 0:
                 dones = dones.unsqueeze(0)
 
-
+        # Store transition
         buffer.store(
             state.cpu().numpy(),
             rewards.squeeze().cpu().numpy(),
@@ -197,23 +223,31 @@ def training_loop(agent, config, num_eval_episodes=5, checkpoint_path=None, resu
         tracking['total_env_steps'] += config.num_envs
         update_episode_tracking(tracking, config, rewards, terminated)
 
+        # Update progress bar
         if config.show_progress and len(tracking['completed_rewards']) > 0:
             postfix = {
-                'episodes': tracking['episode_num'],
-                'mean_reward': f"{np.mean(tracking['completed_rewards']):.2f}",
+                'ep': tracking['episode_num'],
+                'reward': f"{np.mean(tracking['completed_rewards']):.1f}",
                 'updates': tracking['num_updates'],
-                'lr': f"{policy.get_current_lr():.2e}",
-                'c2': f"{policy.c2:.4f}",
+                'lr': f"{policy.get_current_lr():.1e}",
             }
-            if config.use_curriculum:
-                postfix['phase'] = current_phase
+            if curriculum_state is not None:
+                postfix['phase'] = curriculum_state.current_phase
             pbar.set_postfix(postfix)
+            
+        # Checkpointing
+        if step - tracking['last_checkpoint'] >= config.checkpoint_freq:
+                save_checkpoint(agent, policy, tracking, config, run, step)
+                print(f"Model checkpoint saved at step {step}")
     
-        if step - tracking['last_eval_step']  >= config.eval_freq:
-            run_evaluation(agent.__class__, policy, tracking, config, run, step, num_eval_episodes)
+        # Evaluation
+        if step - tracking['last_eval_step'] >= config.eval_freq:
+            run_evaluation(agent.__class__, policy, tracking, config, run, step, num_eval_episodes, curriculum_state)
 
-        state, environment = handle_env_resets(env, environment, next_state, terminated, config.num_envs)      
+        # Handle environment resets
+        state, environment = handle_env_resets(env, environment, next_state, terminated, config.num_envs)
           
+        # PPO update when buffer is full
         if buffer.idx == buffer.capacity:
             mean_loss = policy.update(buffer, config, next_state=state)
             tracking['num_updates'] += 1
@@ -224,13 +258,12 @@ def training_loop(agent, config, num_eval_episodes=5, checkpoint_path=None, resu
             
             buffer.clear()
             
-            if step - tracking['last_checkpoint'] >= config.checkpoint_freq:
-                save_checkpoint(agent, policy, tracking, config, run, step)
-                print(f"Model checkpoint saved at step {step}")
-    else:
-        env.close()
-    # Perform final evaluation and store last weights
-    run_evaluation(agent.__class__, policy, tracking, config, run, step, num_eval_episodes)
+
+    # Cleanup
+    env.close()
+    
+    # Final evaluation and checkpoint
+    run_evaluation(agent.__class__, policy, tracking, config, run, step, num_eval_episodes, curriculum_state)
     save_checkpoint(agent, policy, tracking, config, run, step)
 
     if config.USE_WANDB:
@@ -241,20 +274,24 @@ def training_loop(agent, config, num_eval_episodes=5, checkpoint_path=None, resu
     
     return agent
 
-def train(model, config, num_eval_episodes=9):
+
+def train(model, config, num_eval_episodes=9, curriculum_option=None):
+    """Start fresh training run."""
     agent = model()
-    return training_loop(agent, config, num_eval_episodes)
+    return training_loop(agent, config, num_eval_episodes, curriculum_option=curriculum_option)
 
 
-def finetune(model, checkpoint_path, config, num_eval_episodes=9):
+def finetune(model, checkpoint_path, config, num_eval_episodes=9, curriculum_option=None):
+    """Load weights from checkpoint but start training fresh (step 0)."""
     agent = model()
-    return training_loop(agent, config, num_eval_episodes, checkpoint_path=checkpoint_path)
+    return training_loop(agent, config, num_eval_episodes, checkpoint_path=checkpoint_path, curriculum_option=curriculum_option)
 
-def resume(model, checkpoint_path, config, num_eval_episodes=9):
+
+def resume(model, checkpoint_path, config, num_eval_episodes=9, curriculum_option=None):
+    """Resume training from checkpoint step."""
     agent = model()
-    return training_loop(agent, config, num_eval_episodes, checkpoint_path=checkpoint_path, resume=True)
+    return training_loop(agent, config, num_eval_episodes, checkpoint_path=checkpoint_path, resume=True, curriculum_option=curriculum_option)
+
 
 if __name__ == "__main__":
     run_training()
-
-

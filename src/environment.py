@@ -1,3 +1,4 @@
+
 from torchrl.envs import TransformedEnv, GymWrapper, ParallelEnv 
 from torchrl.envs.transforms import (
     ToTensorImage,
@@ -13,10 +14,13 @@ from gymnasium.wrappers import RecordVideo
 from wrappers import Discretizer, FrameSkipAndTermination, MaxStepWrapper
 from rewards import ComposedRewardWrapper
 from torchvision.transforms import InterpolationMode
+from curriculum import compute_level_distribution, uniform_distribution
 
+
+# Default level configuration for non-curriculum training
 DEFAULT_LEVELS = {
-    'level1': 'YoshiIsland2',
-    'level2': 'YoshiIsland3',
+    'YoshiIsland2': 0.5,
+    'YoshiIsland3': 0.5,
 }
 
 MARIO_ACTIONS = [
@@ -36,105 +40,145 @@ MARIO_ACTIONS = [
     ['A'],                # Spin Jump
 ]
 
-def compute_level_distribution(num_envs, **level_kwargs):
-    """Distribute environments uniformly across specified levels.
-      Usage: compute_level_distribution(16, level1='YoshiIsland2', level2='YoshiIsland1', level3='DonutPlains1')
-    """
-    levels = level_kwargs if level_kwargs else DEFAULT_LEVELS
-    level_list = list(levels.values())
-    num_levels = len(level_list)
-    
-    # Distribute as uniformly as possible
-    base_count = num_envs // num_levels
-    remainder = num_envs % num_levels
-    
-    distribution = []
-    for i, level in enumerate(level_list):
-        # Give one extra env to the first 'remainder' levels
-        count = base_count + (1 if i < remainder else 0)
-        distribution.extend([level] * count)
-    
-    return distribution
 
-def prepare_env(env, skip=2, record=False, record_dir=None):
+def _wrap_env(env, skip=2, record=False, record_dir=None):
+    """Apply all wrappers to a raw retro environment."""
     wrapped_env = Discretizer(env, MARIO_ACTIONS)
     wrapped_env = ComposedRewardWrapper(wrapped_env)
     wrapped_env = FrameSkipAndTermination(wrapped_env, skip=skip)
     wrapped_env = MaxStepWrapper(wrapped_env, max_steps=8000)
+    
     if record:
-        from utils import readable_timestamp # Avoid circular imports
+        from utils import readable_timestamp
         wrapped_env = RecordVideo(
             wrapped_env,
             video_folder=record_dir,
-            episode_trigger=lambda x: True, # Record every episode, used for eval runs
+            episode_trigger=lambda x: True,
             name_prefix=f"eval_{readable_timestamp()}"
         )
+    
     wrapped_env = GymWrapper(wrapped_env)
 
     return TransformedEnv(wrapped_env, Compose([
-    ToTensorImage(), # Convert stable-retro return values to PyTorch Tensors
-    Resize(84, 84, interpolation=InterpolationMode.NEAREST), # Can also do 96x96, 128x128
-    GrayScale(),
-    CatFrames(N=4, dim=-3), # dim -3 stacks frames over the channel dimension
-    StepCounter(),
-    RewardSum(),
-  ]))
- 
-def make_training_env(num_envs=1, **level_kwargs):
-    if num_envs == 1:
-        return prepare_env(
-            retro.make(
-            'SuperMarioWorld-Snes',
-            state='YoshiIsland3', # YoshiIsland2
-            render_mode='human', # Change to 'rgb_array' when debugging finished,
-        ))
-    else:
-        if num_envs == 28:
-            level_dist = compute_level_distribution(num_envs, level1='YoshiIsland2', level2='DonutPlains1', level3='DonutPlains4', level4='DonutPlains5')
-        else:
-            level_dist = compute_level_distribution(num_envs)
-        create_env = lambda level: prepare_env(
-            retro.make(
-                'SuperMarioWorld-Snes',
-                state=level,
-                render_mode='rgb_array'
-            )
-        )
-        return ParallelEnv(
-            num_workers=num_envs,
-            create_env_fn=create_env,
-            create_env_kwargs=[{'level': state} for state in level_dist]
-        )
+        ToTensorImage(),
+        Resize(84, 84, interpolation=InterpolationMode.NEAREST),
+        GrayScale(),
+        CatFrames(N=4, dim=-3),
+        StepCounter(),
+        RewardSum(),
+    ]))
 
 
-def make_curriculum_env(num_envs, level_distribution):
-    """Create training environment with a specific level distribution.
+def make_env(
+    num_envs: int = 1,
+    level_weights: dict = None,
+    level_distribution: list = None,
+    render_human: bool = False,
+    frame_skip: int = 2,
+    record: bool = False,
+    record_dir: str = None,
+    specs: dict = None,  # [FIX] Added specs argument
+):
+    """
+    Create training environment(s) with flexible level configuration.
     
     Args:
-        num_envs: Number of parallel environments
-        level_distribution: List of level names (e.g., ['YoshiIsland2', 'YoshiIsland2', 'YoshiIsland3'])
-    
-    Returns:
-        Configured environment(s)
+        num_envs: Number of parallel environments (1 for single env)
+        level_weights: Dict mapping level names to weights.
+        level_distribution: Explicit list of level names for each env.
+        render_human: If True, render to screen (only works with num_envs=1)
+        frame_skip: Number of frames to skip per action
+        record: If True, record videos
+        record_dir: Directory for recorded videos
+        specs: Optional dict containing env specs (observation_spec, etc.) 
+               to avoid creating a dummy env in ParallelEnv.
     """
-    if num_envs == 1:
-        # Single env uses first level in distribution
-        return prepare_env(
-            retro.make(
-                'SuperMarioWorld-Snes',
-                state=level_distribution[0],
-                render_mode='human',
-            ))
+    # Determine level distribution
+    if level_distribution is not None:
+        if len(level_distribution) != num_envs:
+            raise ValueError(
+                f"level_distribution length ({len(level_distribution)}) "
+                f"must match num_envs ({num_envs})"
+            )
+        dist = level_distribution
+    elif level_weights is not None:
+        dist = compute_level_distribution(num_envs, level_weights)
     else:
-        create_env = lambda level: prepare_env(
-            retro.make(
+        dist = compute_level_distribution(num_envs, DEFAULT_LEVELS)
+    
+    # Determine render mode
+    if num_envs == 1:
+        render_mode = 'human' if render_human else 'rgb_array'
+    else:
+        if render_human:
+            raise ValueError("render_human=True only supported with num_envs=1")
+        render_mode = 'rgb_array'
+    
+    # Create environment(s)
+    if num_envs == 1:
+        raw_env = retro.make(
+            'SuperMarioWorld-Snes',
+            state=dist[0],
+            render_mode=render_mode,
+        )
+        return _wrap_env(raw_env, skip=frame_skip, record=record, record_dir=record_dir)
+    else:
+        def create_env(level):
+            raw_env = retro.make(
                 'SuperMarioWorld-Snes',
                 state=level,
-                render_mode='rgb_array'
+                render_mode='rgb_array',
             )
-        )
-        return ParallelEnv(
-            num_workers=num_envs,
-            create_env_fn=create_env,
-            create_env_kwargs=[{'level': state} for state in level_distribution]
-        )
+            return _wrap_env(raw_env, skip=frame_skip)
+        
+        env_kwargs = {
+            'num_workers': num_envs,
+            'create_env_fn': create_env,
+            'create_env_kwargs': [{'level': level} for level in dist],
+        }
+        
+        if specs:
+            env_kwargs.update(specs)
+            
+        return ParallelEnv(**env_kwargs)
+
+
+def make_eval_env(level: str, record_dir: str = None):
+    """
+    Create a single environment configured for evaluation.
+    """
+    raw_env = retro.make(
+        'SuperMarioWorld-Snes',
+        state=level,
+        render_mode='rgb_array',
+    )
+    return _wrap_env(
+        raw_env,
+        record=record_dir is not None,
+        record_dir=record_dir,
+    )
+
+
+# Legacy aliases for backwards compatibility
+def make_training_env(num_envs=1, **level_kwargs):
+    if level_kwargs:
+        level_weights = {v: 1.0 for v in level_kwargs.values()}
+    else:
+        level_weights = None
+    
+    return make_env(
+        num_envs=num_envs,
+        level_weights=level_weights,
+        render_human=(num_envs == 1),
+    )
+
+
+def make_curriculum_env(num_envs: int, level_distribution: list):
+    return make_env(
+        num_envs=num_envs,
+        level_distribution=level_distribution,
+        render_human=(num_envs == 1),
+    )
+
+
+prepare_env = _wrap_env

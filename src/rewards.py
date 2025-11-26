@@ -71,10 +71,10 @@ class DamageReward:
         reward = 0.0
         
         if self.last_state > 0 and current_state == 0 and not terminated: # Don't double punish death
-            reward -= self.penalty
+            reward += self.penalty
 
         elif self.last_state == 0 and current_state > 0: # A powerup is worth 1/2 the penalty for taking a hit in reward
-            reward += self.penalty / 2
+            reward -= self.penalty / 2
         
         self.last_state = current_state
 
