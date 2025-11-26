@@ -45,7 +45,10 @@ def training_loop(agent, config, num_eval_episodes=5, checkpoint_path=None, resu
     device = "cuda" if t.cuda.is_available() else "cpu"
     agent = agent.to(device)
     policy, buffer, env, environment, state = init_training(agent, config, device)
-    start_step, tracking = setup_from_checkpoint(checkpoint_path, agent, policy, config, device, resume)
+    if checkpoint_path is not None:
+        start_step, tracking = setup_from_checkpoint(checkpoint_path, agent, policy, config, device, resume)
+    else:
+        tracking = init_tracking(config)
     param = 0
     for name, p in agent.named_parameters():
         param += p.numel()
@@ -56,8 +59,7 @@ def training_loop(agent, config, num_eval_episodes=5, checkpoint_path=None, resu
     else:
         print(f"Training {config.architecture} on CPU")
     
-    tracking = init_tracking(config)
-    pbar = tqdm(range(config.num_training_steps), disable=not config.show_progress)
+    pbar = tqdm(range(start_step, config.num_training_steps), disable=not config.show_progress)
     
     for step in pbar:
         policy.c2 = get_entropy(step, total_steps=config.num_training_steps, max_entropy=config.c2) 
@@ -125,8 +127,8 @@ def training_loop(agent, config, num_eval_episodes=5, checkpoint_path=None, resu
         env.close()
     # Perform final evaluation and store last weights
     run_evaluation(agent.__class__, policy, tracking, config, run, step, num_eval_episodes)
-    save_checkpoint(agent, tracking, config, step, run, step)
-    
+    save_checkpoint(agent, policy, tracking, config, run, step)
+
     if config.USE_WANDB:
         import wandb
         wandb.finish()

@@ -11,11 +11,11 @@ from ppo import PPO
 
 EVAL_LEVELS = ['YoshiIsland2', 'YoshiIsland1', 'DonutPlains1', 'DonutPlains4']
 
-def evaluate(agent, num_episodes=9, record_dir='/evals', levels=None):
+def evaluate(agent, num_episodes=9, record_dir='./evals', levels=None):
     if levels == 28:
         EVAL_LEVELS = ['YoshiIsland2', 'YoshiIsland1', 'DonutPlains1', 'DonutPlains4', 'ChocolateIsland1', 'DonutPlains3']
     else:
-        EVAL_LEVELS = ['YoshiIsland2', 'YoshiIsland1', 'DonutPlains3', 'DonutPlains1']
+        EVAL_LEVELS = ['YoshiIsland2', 'YoshiIsland1', 'DonutPlains4', 'DonutPlains1', 'ChocolateIsland1',]
 
 
     episodes_per_level = num_episodes // 3
