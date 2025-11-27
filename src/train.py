@@ -145,7 +145,7 @@ def training_loop(agent, config, num_eval_episodes=5, checkpoint_path=None, resu
     print(f"Training {config.architecture} on {device.upper()}")
     
     pbar = tqdm(range(start_step, config.num_training_steps), disable=not config.show_progress)
-    
+    agent = t.compile(agent)
     for step in pbar:
         # Check for curriculum phase transition
         if curriculum_state is not None:

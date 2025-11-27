@@ -19,7 +19,6 @@ ALL_LEVELS = [
     'ChocolateIsland1', 'ChocolateIsland2', 'ChocolateIsland3',
     'DonutPlains1', 'DonutPlains2', 'DonutPlains3', 'DonutPlains4', 'DonutPlains5',
     'Forest1', 'Forest2', 'Forest3', 'Forest4', 'Forest5',
-    'StarWorld1', 'StarWorld2', 'StarWorld3', 'StarWorld4', 'StarWorld5',
     'VanillaDome1', 'VanillaDome2', 'VanillaDome3', 'VanillaDome4', 'VanillaDome5',
     'YoshiIsland1', 'YoshiIsland2', 'YoshiIsland3', 'YoshiIsland4',
 ]
@@ -31,10 +30,10 @@ ALL_LEVELS = [
 # - Next 20%: Add DonutPlains3
 # - Final 40%: Full mix with DonutPlains4
 CURRICULUM_1 = [
-    (0.20, {'YoshiIsland2': 1.0}),
-    (0.40, {'YoshiIsland2': 0.3, 'DonutPlains1': 0.7}),
-    (0.60, {'YoshiIsland2': 0.1, 'DonutPlains1': 0.3, 'DonutPlains3': 0.6}),
-    (1.00, {'YoshiIsland2': 0.1, 'DonutPlains1': 0.2, 'DonutPlains3': 0.4, 'DonutPlains4': 0.3}),
+    (0.05, {'YoshiIsland2': 1.0}),
+    (0.25, {'YoshiIsland2': 0.3, 'DonutPlains1': 0.7}),
+    (0.30, {'YoshiIsland2': 0.1, 'DonutPlains1': 0.3, 'DonutPlains4': 0.6}),
+    (0.40, {'YoshiIsland2': 0.1, 'DonutPlains1': 0.1, 'DonutPlains4': 0.4, 'DonutPlains5': 0.4}),
 ]
 
 # Curriculum 2: Slower progression, ends with YoshiIsland3

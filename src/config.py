@@ -76,7 +76,7 @@ class TrainingConfig:
 TRANSPALA_TRAIN_CONFIG = TrainingConfig(
     architecture='TransPala',
     lr_schedule='linear',
-    learning_rate=1.5e-4,
+    learning_rate=2.0e-4,
     min_lr=1e-6,
     epochs=3,
     clip_eps=0.2,
@@ -84,11 +84,11 @@ TRANSPALA_TRAIN_CONFIG = TrainingConfig(
     c2=0.02,
     gamma=0.995,
     lambda_gae=0.95,
-    num_envs=28,
+    num_envs=60,
     steps_per_env=512,  # 28 × 512 = 14,336 batch size
     num_training_steps=4_000_000,
-    checkpoint_freq=150_000,
-    eval_freq=150_000,
+    checkpoint_freq=100_000,
+    eval_freq=100_000,
     show_progress=True,
     USE_WANDB=True
 )

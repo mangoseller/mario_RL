@@ -9,61 +9,61 @@ from model_components import (
     SpatialAttentionPool,
     PixelControlHead
 )
-
 class TransPala(nn.Module):
 
     def __init__(self, num_actions=14, dropout=0.1):
         super().__init__()
-
+        
         self.aug = RandomShifts(pad=4)
-        # 3 Scales * 4 Coords = 12 Channels
         self.coord_conv = FourierCoordConv(scales=[1.0, 2.0, 4.0])
 
-        # Stem: 4 (GrayStack) + 12 (Fourier) = 16 Input Channels
         self.stem = nn.Sequential(
             nn.Conv2d(16, 32, kernel_size=3, padding=1),
             nn.GroupNorm(num_groups=4, num_channels=32),
             nn.SiLU()
         )
 
-        # Progressive stochastic depth: 0 -> 0.05 -> 0.1 -> 0.15
         self.block1 = ModelBlock(32, 64, num_residual=2, 
                                  drop_prob_start=0.0, drop_prob_end=0.05,
                                  use_spatial_attention=False)
 
-        self.block2 = ModelBlock(64, 128, num_residual=3,
+        self.block2 = ModelBlock(64, 128, 
+                                 num_residual=2,  # Reduced from 3
                                  drop_prob_start=0.05, drop_prob_end=0.1,
                                  use_spatial_attention=True)
 
-        self.block3 = ModelBlock(128, 256, num_residual=5,
+        self.block3 = ModelBlock(128, 256, 
+                                 num_residual=2,                                  
                                  drop_prob_start=0.1, drop_prob_end=0.15,
                                  use_spatial_attention=True,
-                                 use_axial_attention=True)
+                                 use_axial_attention=True) 
 
-        # Attention pooling
+       
         self.pool = SpatialAttentionPool(256, num_heads=8, dropout=dropout)
 
-        # [MODIFIED] Reduced trunk size from 2048 to 1024
+
         self.trunk = nn.Sequential(
-            nn.Linear(256, 1024),
-            nn.LayerNorm(1024),
+            nn.Linear(256, 512), 
+            nn.LayerNorm(512),
             nn.SiLU()
         )
 
+    
         self.policy_head = nn.Sequential(
             nn.Dropout(dropout),
-            nn.Linear(1024, 512),
+            nn.Linear(512, 256),
             nn.SiLU(),
-            nn.Linear(512, num_actions)
+            nn.Linear(256, num_actions)
         )
 
         self.value_head = nn.Sequential(
-            nn.Linear(1024, 512),
+            nn.Linear(512, 256),
             nn.SiLU(),
-            nn.Linear(512, 1)
+            nn.Linear(256, 1)
         )
         
-        self.pixel_control_head = PixelControlHead(1024, grid_size=7)
+
+        self.pixel_control_head = PixelControlHead(512, grid_size=7)
         
         self._init_weights()
 

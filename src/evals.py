@@ -60,7 +60,7 @@ def evaluate(agent, num_episodes=9, record_dir='./evals', eval_levels=None):
     if eval_levels is None:
         eval_levels = DEFAULT_EVAL_LEVELS
 
-    episodes_per_level = max(1, num_episodes // len(eval_levels))
+    episodes_per_level = max(3, num_episodes // len(eval_levels))
     
     all_rewards = []
     all_lengths = []
