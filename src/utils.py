@@ -13,6 +13,28 @@ def readable_timestamp():
     return datetime.now().strftime("%d-%m_%H-%M")
 
 
+def get_base_model(model):
+    """
+    Get the underlying model from DataParallel/DistributedDataParallel/compiled wrapper.
+    
+    Handles:
+    - nn.DataParallel (has .module)
+    - nn.parallel.DistributedDataParallel (has .module)
+    - torch.compile (has ._orig_mod)
+    - Nested wrappers (e.g., compiled DataParallel)
+    """
+    # Unwrap DataParallel/DDP
+    if hasattr(model, 'module'):
+        model = model.module
+    # Unwrap torch.compile
+    if hasattr(model, '_orig_mod'):
+        model = model._orig_mod
+    # Check again in case of nested wrappers (compiled + DataParallel)
+    if hasattr(model, 'module'):
+        model = model.module
+    return model
+
+
 def init_training(agent, config, device):
     """
     Initialize PPO policy, buffer, environment, and get initial state.
@@ -104,8 +126,11 @@ def save_checkpoint(agent, policy, tracking, config, run, step, curriculum_optio
     checkpoint_dir = "model_checkpoints"
     os.makedirs(checkpoint_dir, exist_ok=True)
     
+    # Get base model for saving (unwrap DataParallel/compile if needed)
+    base_model = get_base_model(agent)
+    
     checkpoint = {
-        'model_state_dict': agent.state_dict(),
+        'model_state_dict': base_model.state_dict(),
         'optimizer_state_dict': policy.optimizer.state_dict(),
         'scheduler_state_dict': policy.scheduler.state_dict() if policy.scheduler else None,
         'step': step,
@@ -137,7 +162,11 @@ def save_checkpoint(agent, policy, tracking, config, run, step, curriculum_optio
 def load_checkpoint(checkpoint_path, agent, policy, device):
     """Load model and optimizer state from checkpoint."""
     checkpoint = t.load(checkpoint_path, map_location=device)
-    agent.load_state_dict(checkpoint['model_state_dict'])
+    
+    # Get base model for loading (unwrap DataParallel/compile if needed)
+    base_model = get_base_model(agent)
+    base_model.load_state_dict(checkpoint['model_state_dict'])
+    
     policy.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     
     if checkpoint['scheduler_state_dict'] and policy.scheduler:
@@ -231,9 +260,13 @@ def setup_from_checkpoint(checkpoint_path, agent, policy, config, device, resume
         weights = t.load(checkpoint_path, map_location=device)
         # Handle both old (raw state_dict) and new (full checkpoint) formats
         if 'model_state_dict' in weights:
-            agent.load_state_dict(weights['model_state_dict'])
+            state_dict = weights['model_state_dict']
         else:
-            agent.load_state_dict(weights)
+            state_dict = weights
+        
+        # Get base model for loading (unwrap DataParallel/compile if needed)
+        base_model = get_base_model(agent)
+        base_model.load_state_dict(state_dict)
         return 0, init_tracking(config)
 
 

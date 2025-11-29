@@ -2,6 +2,20 @@ import torch as t
 from torch.distributions import Categorical
 import numpy as np
 
+
+def get_base_model(model):
+    """
+    Get the underlying model from DataParallel/DistributedDataParallel/compiled wrapper.
+    """
+    if hasattr(model, 'module'):
+        model = model.module
+    if hasattr(model, '_orig_mod'):
+        model = model._orig_mod
+    if hasattr(model, 'module'):
+        model = model.module
+    return model
+
+
 class PPO:
     def __init__(self, model, config, device):
         self.model = model
@@ -29,6 +43,11 @@ class PPO:
             )
         elif lr_schedule == 'constant':
             self.scheduler = None
+
+    def _has_pixel_control(self):
+        """Check if the underlying model has pixel control head."""
+        base_model = get_base_model(self.model)
+        return hasattr(base_model, 'pixel_control_head')
 
     @t.inference_mode()
     def action_selection(self, states):
@@ -64,7 +83,7 @@ class PPO:
             'explained_variance': explained_var.item(),
         }
     
-    def compute_loss(self, states, actions, old_log_probs, advantages, returns, pixel_targets=None, pixel_loss_weight=0.1):
+    def compute_loss(self, states, actions, old_log_probs, advantages, returns, pixel_targets=None, pixel_loss_weight=0.25):
         states = states.to(self.device)
         actions = actions.to(self.device)
         old_log_probs = old_log_probs.to(self.device)
@@ -175,8 +194,8 @@ class PPO:
             advantages, returns = self.compute_advantages(buffer, next_state=next_state)
             normalized_advantages = (advantages - advantages.mean()) / (advantages.std() + eps)
             
-            # Check if model supports pixel control
-            use_pixel_control = hasattr(self.model, 'pixel_control_head')
+            # Check if model supports pixel control (use helper to handle DataParallel)
+            use_pixel_control = self._has_pixel_control()
             
             pixel_targets = None
             
@@ -288,5 +307,6 @@ class PPO:
             averaged_diagnostics['total_loss'] = np.mean(total_losses)
             
             return averaged_diagnostics
+    
     def get_current_lr(self):
         return self.optimizer.param_groups[0]['lr']

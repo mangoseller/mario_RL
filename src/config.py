@@ -141,7 +141,7 @@ IMPALA_TRAIN_CONFIG = TrainingConfig(
     clip_eps=0.2,
     c1=0.5,
     c2=0.02,
-    num_envs=32,
+    num_envs=240,
     steps_per_env=256,
     num_training_steps=4_000_000,
     checkpoint_freq=200_000,
@@ -164,7 +164,7 @@ IMPALA_TEST_CONFIG = TrainingConfig(
     steps_per_env=100,
     num_training_steps=4_000_000,
     checkpoint_freq=2000000000000,
-    eval_freq=200,
+    eval_freq=2,
     show_progress=True,
     USE_WANDB=True
 )

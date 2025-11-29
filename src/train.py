@@ -21,7 +21,8 @@ from utils import (
     get_torch_compatible_actions,
     get_entropy,
     readable_timestamp,
-    setup_from_checkpoint
+    setup_from_checkpoint,
+    get_base_model,
 )
 from environment import make_env
 from ppo import PPO
@@ -98,6 +99,21 @@ def init_training_components(agent, config, device, curriculum_state=None):
     return policy, buffer, env, environment, state
 
 
+def wrap_model_for_multi_gpu(agent, device):
+    """
+    Wrap model with DataParallel if multiple GPUs are available.
+    
+    Returns:
+        Wrapped model (or original if single GPU)
+    """
+    if t.cuda.device_count() > 1:
+        print(f"{'='*60}")
+        print(f"MULTI-GPU: Using {t.cuda.device_count()} GPUs with DataParallel")
+        print(f"{'='*60}\n")
+        agent = t.nn.DataParallel(agent)
+    return agent
+
+
 def training_loop(agent, config, num_eval_episodes=5, checkpoint_path=None, resume=False, curriculum_option=None):
     """
     Main training loop supporting both standard and curriculum learning.
@@ -105,6 +121,12 @@ def training_loop(agent, config, num_eval_episodes=5, checkpoint_path=None, resu
     run = config.setup_wandb()
     device = "cuda" if t.cuda.is_available() else "cpu"
     agent = agent.to(device)
+    
+    # Store model class before any wrapping for evals
+    agent_class = agent.__class__
+    
+    # Wrap with DataParallel if multiple GPUs available
+    agent = wrap_model_for_multi_gpu(agent, device)
     
     # Initialize curriculum if enabled
     curriculum_state = None
@@ -140,13 +162,18 @@ def training_loop(agent, config, num_eval_episodes=5, checkpoint_path=None, resu
         start_step = 0
     
     # Log model info
-    total_params = sum(p.numel() for p in agent.parameters())
+    base_model = get_base_model(agent)
+    total_params = sum(p.numel() for p in base_model.parameters())
     print(f"Total Parameters: {total_params:,}")
     print(f"Training {config.architecture} on {device.upper()}")
+    if t.cuda.device_count() > 1:
+        print(f"Batch will be split across {t.cuda.device_count()} GPUs")
     
     pbar = tqdm(range(start_step, config.num_training_steps), disable=not config.show_progress)
-    agent_class = agent.__class__
+    
+    # Apply torch.compile after DataParallel wrapping
     agent = t.compile(agent)
+    
     for step in pbar:
         # Check for curriculum phase transition
         if curriculum_state is not None:
@@ -244,7 +271,7 @@ def training_loop(agent, config, num_eval_episodes=5, checkpoint_path=None, resu
     env.close()
     
     # Final evaluation and checkpoint
-    run_evaluation(agent.__class__, policy, tracking, config, run, step, num_eval_episodes, curriculum_state)
+    run_evaluation(agent_class, policy, tracking, config, run, step, num_eval_episodes, curriculum_state)
     save_checkpoint(agent, policy, tracking, config, run, step, curriculum_option=curriculum_option)
 
     if config.USE_WANDB:

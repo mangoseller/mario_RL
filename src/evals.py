@@ -6,7 +6,7 @@ import random
 from datetime import datetime
 from multiprocessing import Process, Queue
 from environment import make_eval_env
-from utils import get_torch_compatible_actions
+from utils import get_torch_compatible_actions, get_base_model
 from ppo import PPO
 from curriculum import ALL_LEVELS
 
@@ -145,7 +145,11 @@ def _run_eval_(model, model_state_dict, config, num_episodes, record_dir, eval_l
 def eval_parallel_safe(model, policy, config, record_dir, num_episodes=5, eval_levels=None):
     """Run evaluation in a subprocess to avoid environment conflicts."""
     result_queue = Queue()
-    cpu_state_dicts = {k: v.cpu() for k, v in policy.model.state_dict().items()}
+    
+    # Get base model (unwrap DataParallel/compile if needed) before extracting state dict
+    base_model = get_base_model(policy.model)
+    cpu_state_dicts = {k: v.cpu() for k, v in base_model.state_dict().items()}
+    
     process = Process(target=_run_eval_, args=(
         model, cpu_state_dicts, config, num_episodes, record_dir, eval_levels, result_queue 
     ))
