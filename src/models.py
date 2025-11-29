@@ -88,7 +88,7 @@ class TransPala(nn.Module):
 
         # (B, 256, H, W) -> (B, H*W, 256)
         b, c, h, w = x.shape
-        x = x.view(b, c, h * w).permute(0, 2, 1)
+        x = x.view(b, c, h * w).permute(0, 2, 1).contiguous()
         
         x = self.pool(x)
         x = self.trunk(x)
@@ -154,7 +154,7 @@ class ImpalaLike(nn.Module):
 
         # (B, 128, H, W) -> (B, H*W, 128)
         b, c, h, w = x.shape
-        x = x.view(b, c, h * w).permute(0, 2, 1)
+        x = x.view(b, c, h * w).permute(0, 2, 1).contiguous()
         
         x = self.pool(x)
         x = self.trunk(x)

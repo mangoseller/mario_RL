@@ -171,8 +171,11 @@ def training_loop(agent, config, num_eval_episodes=5, checkpoint_path=None, resu
     
     pbar = tqdm(range(start_step, config.num_training_steps), disable=not config.show_progress)
     
-    # Apply torch.compile after DataParallel wrapping
-    agent = t.compile(agent)
+    # Only apply torch.compile if NOT using DataParallel (compatibility issues)
+    if t.cuda.device_count() <= 1:
+        agent = t.compile(agent)
+    else:
+        print("Note: torch.compile disabled with DataParallel for compatibility")
     
     for step in pbar:
         # Check for curriculum phase transition

@@ -28,8 +28,8 @@ class FourierCoordConv(nn.Module):
             ])
         
         coords = t.stack(coord_channels, dim=0)
-        coords = repeat(coords, 'c h w -> b c h w', b=b)
-        return t.cat([x, coords], dim=1)
+        coords = repeat(coords, 'c h w -> b c h w', b=b).contiguous()
+        return t.cat([x.contiguous(), coords], dim=1)
 
 
 class StochasticDepth(nn.Module):
@@ -115,15 +115,16 @@ class AxialAttentionBlock(nn.Module):
         x = self.norm(x)
         
         # 1. Row attention
-        x_row = x.permute(0, 2, 3, 1).reshape(b * h, w, c) # (B*H, W, C)
+        # .contiguous() required for CUDA alignment with DataParallel
+        x_row = x.permute(0, 2, 3, 1).reshape(b * h, w, c).contiguous() # (B*H, W, C)
         x_row_out, _ = self.row_attn(x_row, x_row, x_row)
-        x_row_out = x_row_out.reshape(b, h, w, c).permute(0, 3, 1, 2)
+        x_row_out = x_row_out.reshape(b, h, w, c).permute(0, 3, 1, 2).contiguous()
         
         # 2. Column attention
         # Sequential: Feed output of row attention into column attention
-        x_col = x_row_out.permute(0, 3, 2, 1).reshape(b * w, h, c) # (B*W, H, C)
+        x_col = x_row_out.permute(0, 3, 2, 1).reshape(b * w, h, c).contiguous() # (B*W, H, C)
         x_col_out, _ = self.col_attn(x_col, x_col, x_col)
-        x_col_out = x_col_out.reshape(b, w, h, c).permute(0, 3, 2, 1)
+        x_col_out = x_col_out.reshape(b, w, h, c).permute(0, 3, 2, 1).contiguous()
         
         # 3. Add original residual
         return residual + x_col_out
@@ -180,7 +181,11 @@ class SpatialAttentionPool(nn.Module):
         bias = self.rel_pos_bias(h, w)
         # Average bias for global query
         bias = bias.mean(dim=1, keepdim=True)
-        bias = repeat(bias, 'heads 1 hw -> (b heads) 1 hw', b=b)
+        bias = repeat(bias, 'heads 1 hw -> (b heads) 1 hw', b=b).contiguous()
+        
+        # Ensure inputs are contiguous for CUDA alignment with DataParallel
+        x = x.contiguous()
+        q = q.contiguous()
         
         x, _ = self.attn(q, x, x, attn_mask=bias)
         return x.squeeze(1)
@@ -268,10 +273,10 @@ class RandomShifts(nn.Module):
         y_chan = repeat(v, 'i -> i j 1', j=h)
 
         base_grid = t.cat([x_chan, y_chan], dim=2)
-        base_grid = repeat(base_grid, 'h w c -> n h w c', n=n)
+        base_grid = repeat(base_grid, 'h w c -> n h w c', n=n).contiguous()
 
         shift = t.randint(0, 2 * self.pad + 1, size=(n, 1, 1, 2), device=x.device, dtype=x.dtype)
         shift *= 2.0 / (h + 2 * self.pad)
 
-        grid = base_grid + shift
-        return F.grid_sample(x, grid, padding_mode='zeros', align_corners=False, mode='nearest')
+        grid = (base_grid + shift).contiguous()
+        return F.grid_sample(x.contiguous(), grid, padding_mode='zeros', align_corners=False, mode='nearest')
