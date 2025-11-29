@@ -14,7 +14,7 @@ import numpy as np
 import multiprocessing
 from datetime import datetime
 from gymnasium.wrappers import RecordVideo
-from wrappers import Discretizer, FrameSkipAndTermination, MaxStepWrapper
+from wrappers import Discretizer, FrameSkipAndTermination, MaxStepWrapper, DilatedFrameStack
 from rewards import ComposedRewardWrapper
 from torchvision.transforms import InterpolationMode
 from curriculum import compute_level_distribution, uniform_distribution

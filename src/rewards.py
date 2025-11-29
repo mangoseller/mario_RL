@@ -3,14 +3,14 @@ import gymnasium as gym
 
 REWARD_CONFIG = {
     'movement_reward': 0.025,
-    'step_penalty': 0.0025,
-    'damage_penalty': 1,
+    'step_penalty': 0.002,
+    'damage_penalty': 2,
     'life_loss_penalty': 5.0,
     'max_steps_penalty': 15.0,
     'coin_reward': 0.3,
     'score_reward': 0.001,
     'midway_reward': 20.0,
-    'level_complete_reward': 50.0,
+    'level_complete_reward': 60.0,
 }
 class MovementReward:
     # Reward forward progress through the level
