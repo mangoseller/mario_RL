@@ -163,7 +163,7 @@ def train(model_class, config, curriculum_option=None,
         # Evaluation and checkpoint
         if step - tracking['last_eval_step'] >= config.eval_freq:
             save_checkpoint(agent, policy, tracking, config, run, step, curriculum_option)
-            run_evaluation(model_class, policy, tracking, config, run, step, num_eval_episodes, curriculum)
+            run_evaluation(policy, tracking, config, run, step, curriculum)
             print(f"Eval + checkpoint at step {step}")
             tracking['last_eval_step'] = step
         
@@ -176,7 +176,7 @@ def train(model_class, config, curriculum_option=None,
             buffer.clear()
     
     env.close()
-    run_evaluation(model_class, policy, tracking, config, run, step, curriculum)
+    run_evaluation(policy, tracking, config, run, step, curriculum)
     save_checkpoint(agent, policy, tracking, config, run, step, curriculum_option)
     
     if config.USE_WANDB:

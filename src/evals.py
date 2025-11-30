@@ -77,9 +77,9 @@ def _eval_worker(agent, config, record_dir, eval_levels, queue):
     queue.put(evaluate(policy, record_dir, eval_levels))
 
 
-def evaluate_in_subprocess(agent, config, record_dir, eval_levels):
+def evaluate_in_subprocess(model, config, record_dir, eval_levels):
     queue = Queue()
-    agent_cpu = copy.deepcopy(agent).to('cpu')
+    agent_cpu = copy.deepcopy(model).to('cpu')
 
     proc = Process(target=_eval_worker, args=(
         agent_cpu, config, record_dir, eval_levels, queue
@@ -100,7 +100,7 @@ def run_evaluation(policy, tracking, config, run, step, curriculum=None):
     eval_levels = curriculum.eval_levels if curriculum else ['YoshiIsland2', 'YoshiIsland3', 'DonutPlains1', 'DonutPlains4', 'ChocolateIsland1']
 
     metrics = evaluate_in_subprocess(
-        agent=policy.agent, 
+        model=policy.model, 
         config=config,
         record_dir=eval_dir,
         eval_levels=eval_levels,

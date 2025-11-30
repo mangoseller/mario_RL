@@ -109,7 +109,7 @@ class AxialAttentionBlock(nn.Module):
         self.row_attn = nn.MultiheadAttention(channels, num_heads, batch_first=True)
         self.col_attn = nn.MultiheadAttention(channels, num_heads, batch_first=True)
         
-    def forward(self, x):
+    def forward(self, x): # Can remove this
         b, c, h, w = x.shape
         residual = x
         x = self.norm(x)

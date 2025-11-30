@@ -91,7 +91,6 @@ def run_training():
     parser = argparse.ArgumentParser()
     parser.add_argument('--mode', choices=['train', 'test', 'finetune', 'resume'], default='test')
     parser.add_argument('--model', type=str, default=None)
-    parser.add_argument('--checkpoint', type=str, default='finetune.pt')
     parser.add_argument('--num_eval_episodes', type=int, default=9)
     parser.add_argument('--curriculum', action='store_true')
     parser.add_argument('--curriculum_option', type=int, default=None)

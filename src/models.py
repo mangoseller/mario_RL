@@ -9,6 +9,7 @@ from model_components import (
     SpatialAttentionPool,
     PixelControlHead
 )
+
 class TransPala(nn.Module):
 
     def __init__(self, num_actions=14, dropout=0.1):
@@ -121,7 +122,6 @@ class ImpalaLike(nn.Module):
         
         self.embed_dim = 128
         
-        # Replaced static query attention with TransPala's smarter SpatialAttentionPool
         self.pool = SpatialAttentionPool(self.embed_dim, num_heads=4, dropout=dropout)
 
         self.trunk = nn.Sequential(
