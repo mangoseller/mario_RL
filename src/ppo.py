@@ -1,7 +1,6 @@
 import torch as t 
 from torch.distributions import Categorical
 import numpy as np
-from utils import compute_pixel_change_targets
 
 class PPO:
     def __init__(self, model, config, device):
@@ -30,6 +29,7 @@ class PPO:
             )
         elif lr_schedule == 'constant':
             self.scheduler = None
+
     @property
     def _has_pixel_control(self):
         return hasattr(self.model, 'pixel_control_head')
@@ -93,7 +93,8 @@ class PPO:
             'policy_loss': policy_loss.item(),
             'value_loss': value_loss.item(),
             'entropy': entropy_loss.item(),
-            'pixel_control_loss': pixel_control_loss.item()
+            'pixel_control_loss': pixel_control_loss.item(),
+            'total_loss': total_loss.item(),
         }
         
         return total_loss, diagnostics
@@ -151,11 +152,9 @@ class PPO:
             advantages, returns = self.compute_advantages(buffer, next_state=next_state)
             normalized_advantages = (advantages - advantages.mean()) / (advantages.std() + eps)
             
-
-            
             pixel_targets = None
             
-            if self._has_pixel_control: # TODO: Refactor
+            if self._has_pixel_control:
 
                 # Reconstruct (Time, Env) structure to compute temporal differences
                 buffer_len = buffer.capacity
@@ -197,6 +196,9 @@ class PPO:
                 log_probs = log_probs[:-num_envs]
                 normalized_advantages = normalized_advantages[:-num_envs]
                 returns = returns[:-num_envs]
+            
+            # Accumulate diagnostics across minibatches
+            all_diagnostics = []
                             
             # Mini-batch Updates
             for _ in range(1, num_epochs+1):
@@ -231,18 +233,21 @@ class PPO:
                         mb_states, mb_actions, mb_log_probs, mb_advantages, mb_returns,
                         pixel_targets=mb_pixel_targets
                     )
-                    total_losses = []
-                    total_losses.append(loss.item())
+                    all_diagnostics.append(diagnostics)
 
                     self.optimizer.zero_grad()
                     loss.backward()
-                    t.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=0.5) # Is this using the correct param? 
+                    t.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=0.5)
                     self.optimizer.step()
                     
             if self.scheduler is not None:
                 self.scheduler.step()
             
-            averaged_diagnostics = {np.mean(total_losses)}     
+            # Average diagnostics across all minibatches
+            averaged_diagnostics = {
+                key: np.mean([d[key] for d in all_diagnostics])
+                for key in all_diagnostics[0].keys()
+            }
             return averaged_diagnostics
     
     def get_current_lr(self):

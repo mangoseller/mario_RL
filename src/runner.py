@@ -7,6 +7,7 @@ from config import (
     CONV_TRAIN_CONFIG, CONV_TEST_CONFIG, CONV_TUNE_CONFIG,
 )
 
+
 # Model registry: name -> (class, train_config, test_config, tune_config)
 MODELS = {
     'ConvolutionalSmall': (ConvolutionalSmall, CONV_TRAIN_CONFIG, CONV_TEST_CONFIG, CONV_TUNE_CONFIG),
@@ -14,14 +15,12 @@ MODELS = {
     'TransPala': (TransPala, TRANSPALA_TRAIN_CONFIG, TRANSPALA_TEST_CONFIG, TRANSPALA_TUNE_CONFIG),
 }
 
-# Shortcut aliases
 MODELS['1'] = MODELS['ConvolutionalSmall']
 MODELS['2'] = MODELS['ImpalaLike']
 MODELS['3'] = MODELS['TransPala']
 
 
 def prompt_choice(prompt, valid_options, allow_exit=True):
-    """Generic prompt helper. Returns None if user exits."""
     while True:
         choice = input(prompt).strip()
         if allow_exit and choice.lower() == 'exit':
@@ -32,7 +31,6 @@ def prompt_choice(prompt, valid_options, allow_exit=True):
 
 
 def select_model():
-    """Prompt user to select a model."""
     print("\n" + "="*50)
     print("MODEL SELECTION")
     print("="*50)
@@ -44,7 +42,6 @@ def select_model():
 
 
 def select_curriculum():
-    """Prompt user to select curriculum option."""
     from curriculum import SCHEDULES, Curriculum
     
     print("\n" + "="*50)
@@ -65,7 +62,6 @@ def select_curriculum():
 
 
 def print_checkpoint_info(path):
-    """Display checkpoint info, return info dict."""
     from utils import get_checkpoint_info
     
     info = get_checkpoint_info(path)
@@ -87,7 +83,6 @@ def print_checkpoint_info(path):
 
 
 def get_config(model_class, mode):
-    """Get config for model and mode."""
     _, train, test, tune = MODELS[model_class.__name__]
     return {'train': train, 'test': test, 'finetune': tune}[mode]
 
@@ -103,7 +98,6 @@ def run_training():
     parser.add_argument('--total_steps', type=int, default=None)
     args = parser.parse_args()
     
-    # Model selection
     if args.model is None:
         model_class = select_model()
         if model_class is None:
@@ -115,11 +109,9 @@ def run_training():
     else:
         model_class = MODELS[args.model][0]
     
-    # Determine curriculum option
     curriculum_option = None
     
     if args.mode == 'resume':
-        # Load checkpoint info and validate
         ckpt_info = print_checkpoint_info(args.checkpoint)
         
         if ckpt_info['architecture'] and ckpt_info['architecture'] != model_class.__name__:
@@ -127,7 +119,6 @@ def run_training():
             if input("  Continue? [y/N]: ").strip().lower() != 'y':
                 return
         
-        # Inherit curriculum from checkpoint or args
         if args.curriculum or ckpt_info['use_curriculum']:
             curriculum_option = (args.curriculum_option or 
                                ckpt_info['curriculum_option'] or 
@@ -139,7 +130,6 @@ def run_training():
         config = get_config(model_class, 'train')
         
     else:
-        # Non-resume modes
         if args.curriculum:
             from curriculum import SCHEDULES
             if args.curriculum_option and args.curriculum_option in SCHEDULES:
@@ -154,14 +144,12 @@ def run_training():
         config = replace(config, use_curriculum=True)
     if args.total_steps:
         config = replace(config, num_training_steps=args.total_steps)
-    
-    # Run training
-    from train import train
-    
+
+
+    from train import train # Avoid circular imports
     train(
         model_class, 
         config, 
-        num_eval_episodes=args.num_eval_episodes,
         curriculum_option=curriculum_option,
         checkpoint_path=args.checkpoint if args.mode in ('resume', 'finetune') else None,
         resume=(args.mode == 'resume'),

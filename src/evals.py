@@ -1,3 +1,4 @@
+import copy 
 import numpy as np
 import os
 import torch as t
@@ -5,8 +6,9 @@ import wandb
 from datetime import datetime
 from multiprocessing import Process, Queue
 from environment import make_eval_env
-from utils import get_torch_compatible_actions, get_base_model
+from utils import get_torch_compatible_actions
 from ppo import PPO
+
 
 def _run_episode(agent, env):
     # Run 1 eval episode, return (total_reward, length)
@@ -39,8 +41,7 @@ def _compute_stats(values, prefix):
 
 
 def evaluate(agent, record_dir='./evals', eval_levels=None):
-
-    levels = eval_levels or ['YoshiIsland2', 'YoshiIsland3', 'DonutPlains1', 'DonutPlains4', 'ChocolateIsland1']     
+    levels = eval_levels or ['YoshiIsland2', 'YoshiIsland3', 'DonutPlains1', 'DonutPlains4', 'ChocolateIsland1']      
     all_rewards, all_lengths = [], []
     metrics = {}
     
@@ -67,21 +68,21 @@ def evaluate(agent, record_dir='./evals', eval_levels=None):
     return metrics
 
 
-def _eval_worker(model_class, state_dict, config, record_dir, eval_levels, queue):
-    # Subprocess worker that runs evaluation
-    agent = model_class().to('cpu')
-    agent.load_state_dict(state_dict)
+def _eval_worker(agent, config, record_dir, eval_levels, queue):
+   
+    # Create a new PPO wrapper for the agent on CPU
     policy = PPO(agent, config, device="cpu")
+    
+    # Run evaluation
     queue.put(evaluate(policy, record_dir, eval_levels))
 
 
-
-def evaluate_in_subprocess(model_class, config, record_dir, eval_levels):
-    # Run evaluation in subprocess to avoid environment conflicts with training
+def evaluate_in_subprocess(agent, config, record_dir, eval_levels):
     queue = Queue()
-    state_dict = {k: v.cpu() for k, v in model_class.state_dict().items()}
+    agent_cpu = copy.deepcopy(agent).to('cpu')
+
     proc = Process(target=_eval_worker, args=(
-        model_class, state_dict, config, record_dir, eval_levels, queue
+        agent_cpu, config, record_dir, eval_levels, queue
     ))
     proc.start()
     proc.join()
@@ -89,16 +90,18 @@ def evaluate_in_subprocess(model_class, config, record_dir, eval_levels):
     return queue.get()
 
 
-def run_evaluation(model_class, policy, tracking, config, run, step, curriculum=None):
+def run_evaluation(policy, tracking, config, run, step, curriculum=None):
 
     timestamp = datetime.now().strftime("%H-%M")
     episode_num = tracking['episode_num']
     eval_dir = f'evals/{config.architecture}_{tracking["run_timestamp"]}/eval_ep{episode_num}_{timestamp}'
     os.makedirs(eval_dir, exist_ok=True)
-    
-    eval_levels = curriculum.eval_levels if curriculum else ['YoshiIsland2', 'YoshiIsland3', 'DonutPlains1', 'DonutPlains4', 'ChocolateIsland1']      
+
+    eval_levels = curriculum.eval_levels if curriculum else ['YoshiIsland2', 'YoshiIsland3', 'DonutPlains1', 'DonutPlains4', 'ChocolateIsland1']
+
     metrics = evaluate_in_subprocess(
-        model_class, policy, config,
+        agent=policy.agent, 
+        config=config,
         record_dir=eval_dir,
         eval_levels=eval_levels,
     )
@@ -110,5 +113,3 @@ def run_evaluation(model_class, policy, tracking, config, run, step, curriculum=
         run.log_artifact(artifact)
 
     tracking['last_eval_step'] = step
-
-

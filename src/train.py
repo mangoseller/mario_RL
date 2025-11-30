@@ -18,10 +18,18 @@ from utils import (
     log_training_metrics,
 )
 
+def make_env_for_curriculum(curriculum, config):
+    level_dist = assign_levels(config.num_envs, curriculum.weights)
+    env = make_env(
+        num_envs=config.num_envs,
+        level_distribution=level_dist,
+    )
+    return env, level_dist
 
 
-def train(model_class, config, num_eval_episodes=9, curriculum_option=None, 
+def train(model_class, config, curriculum_option=None, 
           checkpoint_path=None, resume=False):
+
     run = config.setup_wandb()
     device = "cuda" if t.cuda.is_available() else "cpu"
     
@@ -58,7 +66,7 @@ def train(model_class, config, num_eval_episodes=9, curriculum_option=None,
         env, level_dist = make_env_for_curriculum(curriculum, config)
         print(f"Curriculum stage {curriculum.stage}: {level_dist[:5]}...")
     else:
-        env = make_env(num_envs=config.num_envs, render_human=(config.num_envs == 1))
+        env = make_env(num_envs=config.num_envs)
     
     buffer = RolloutBuffer(config.steps_per_env, config.num_envs, device)
     td = env.reset()
