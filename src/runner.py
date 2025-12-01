@@ -95,6 +95,7 @@ def run_training():
     parser.add_argument('--curriculum', action='store_true')
     parser.add_argument('--curriculum_option', type=int, default=None)
     parser.add_argument('--total_steps', type=int, default=None)
+    parser.add_argument('--checkpoint', type=str, default=None, help='Path to checkpoint file')
     args = parser.parse_args()
     
     if args.model is None:

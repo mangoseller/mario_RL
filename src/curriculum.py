@@ -87,18 +87,16 @@ ALL_LEVELS = [
     'YoshiIsland1', 'YoshiIsland2', 'YoshiIsland3', 'YoshiIsland4',
 ]
 
-
 PROGRESSIVE_SCHEDULE = [
     (0.05, {'YoshiIsland2': 1.0}),
-    (0.15, {'YoshiIsland2': 0.5, 'VanillaDome5': 0.5}),
-    (0.25, {'YoshiIsland2': 0.2, 'VanillaDome5': 0.8}),
-    (0.30, {'YoshiIsland2': 0.1, 'VanillaDome5': 0.9}),
-    (0.40, {'YoshiIsland2': 0.1, 'VanillaDome5': 0.65, 'ChocolateIsland3': 0.25}),
-    (0.60, {'YoshiIsland2': 0.1, 'VanillaDome5': 0.4, 'ChocolateIsland3': 0.5}),
-    (0.75, {'YoshiIsland2': 0.075, 'VanillaDome5': 0.275, 'ChocolateIsland3': 0.45, 'YoshiIsland3': 0.15}),
-    (1.00, {'YoshiIsland2': 0.05, 'ChocolateIsland3': 0.4, 'VanillaDome5': 0.15, 'YoshiIsland3': 0.3}),
+    (0.15, {'YoshiIsland2': 0.8, 'YoshiIsland3': 0.2}),
+    (0.25, {'YoshiIsland2': 0.4, 'YoshiIsland3': 0.6}),
+    (0.35, {'YoshiIsland2': 0.1, 'YoshiIsland3': 0.75, 'VanillaDome5': 0.15}),
+    (0.50, {'YoshiIsland2': 0.1, 'YoshiIsland3': 0.45, 'VanillaDome5': 0.45}),
+    (0.65, {'YoshiIsland3': 0.2, 'VanillaDome5': 0.65, 'ChocolateIsland3': 0.15}),
+    (0.85, {'YoshiIsland3': 0.1, 'VanillaDome5': 0.45, 'ChocolateIsland3': 0.45}),
+    (1.00, {'YoshiIsland3': 0.05, 'VanillaDome5': 0.25, 'ChocolateIsland3': 0.7}),
 ]
-
 GRADUAL_SCHEDULE = [
     (0.30, {'YoshiIsland2': 1.0}),
     (0.60, {'YoshiIsland2': 0.4, 'DonutPlains1': 0.6}),

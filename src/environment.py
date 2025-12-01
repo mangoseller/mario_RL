@@ -56,7 +56,7 @@ class MockRetro(gym.Env):
     def step(self, _): return self.observation_space.sample(), 0.0, False, False, {}
     def render(self): pass
 
-def _wrap_env(env, skip=2, record=False, record_dir=None):
+def _wrap_env(env, skip=4, record=False, record_dir=None):
     # Apply all wrappers to a raw retro environment 
 
     wrapped_env = Discretizer(env, MARIO_ACTIONS) # Actions

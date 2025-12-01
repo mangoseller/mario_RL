@@ -8,6 +8,9 @@ echo "=========================================="
 echo "  Vast.ai Environment Setup Script"
 echo "=========================================="
 
+# Deactivate any active venv
+deactivate 2>/dev/null || true
+
 # --- 1. Install Python 3.10 ---
 echo ""
 echo "[1/6] Installing Python 3.10..."
@@ -17,16 +20,10 @@ add-apt-repository ppa:deadsnakes/ppa -y
 apt-get update
 apt-get install -y python3.10 python3.10-venv python3.10-dev python3.10-distutils
 
-# Install pip for Python 3.10
-curl -sS https://bootstrap.pypa.io/get-pip.py | python3.10
+# Install pip for Python 3.10 (ignore existing system pip)
+curl -sS https://bootstrap.pypa.io/get-pip.py | python3.10 - --ignore-installed
 
-# Set up aliases (don't override system python)
-alias python=python3.10
-alias pip='python3.10 -m pip'
-echo "alias python=python3.10" >> ~/.bashrc
-echo "alias pip='python3.10 -m pip'" >> ~/.bashrc
-
-echo "Python 3.10 installed: $(python3.10 --version)"
+echo "Python installed: $(python3.10 --version)"
 
 # --- 2. Install System Dependencies ---
 echo ""
@@ -34,7 +31,7 @@ echo "[2/6] Installing system dependencies..."
 apt-get install -y \
     xvfb \
     ffmpeg \
-    libgl1-mesa-glx \
+    libgl1 \
     libglu1-mesa \
     libglib2.0-0 \
     libsm6 \
@@ -49,16 +46,13 @@ echo "[3/6] Installing Python packages..."
 python3.10 -m pip install --no-cache-dir \
     torch torchvision --index-url https://download.pytorch.org/whl/cu121
 
-python3.10 -m pip install --no-cache-dir \
-    stable-retro \
-    torchrl \
-    gymnasium \
-    einops \
-    tqdm \
-    wandb \
-    moviepy \
-    imageio \
-    imageio-ffmpeg
+# Install packages separately to avoid dependency conflicts
+python3.10 -m pip install --no-cache-dir gymnasium
+python3.10 -m pip install --no-cache-dir stable-retro
+python3.10 -m pip install --no-cache-dir torchrl
+python3.10 -m pip install --no-cache-dir einops
+python3.10 -m pip install --no-cache-dir wandb
+python3.10 -m pip install --no-cache-dir tqdm moviepy imageio imageio-ffmpeg
 
 # --- 4. Set Up Display (Xvfb) ---
 echo ""
@@ -89,6 +83,8 @@ echo "[5/6] Configuring environment..."
 # Add to bashrc for persistence
 grep -q 'export DISPLAY=:99' ~/.bashrc || echo 'export DISPLAY=:99' >> ~/.bashrc
 grep -q 'export PYTHONPATH=/workspace' ~/.bashrc || echo 'export PYTHONPATH=/workspace:$PYTHONPATH' >> ~/.bashrc
+grep -q 'alias python=python3.10' ~/.bashrc || echo 'alias python=python3.10' >> ~/.bashrc
+grep -q 'alias pip=' ~/.bashrc || echo 'alias pip="python3.10 -m pip"' >> ~/.bashrc
 
 # Create workspace directories
 mkdir -p /workspace/evals /workspace/model_checkpoints
@@ -98,7 +94,7 @@ echo ""
 echo "[6/6] Checking for ROM setup..."
 
 if [ -d "/workspace/SuperMarioWorld-Snes" ]; then
-    echo "Found SuperMarioWorld-Snes folder, installing ROM..."
+    echo "Found SuperMarioWorld-Snes folder, importing ROM..."
     
     # Check for required files
     if [ ! -f "/workspace/SuperMarioWorld-Snes/rom.sfc" ]; then
@@ -106,21 +102,21 @@ if [ -d "/workspace/SuperMarioWorld-Snes" ]; then
     elif [ ! -f "/workspace/SuperMarioWorld-Snes/data.json" ]; then
         echo "WARNING: data.json not found in SuperMarioWorld-Snes folder"
     else
-        # Find retro data path and install
+        # Import ROM using retro's import tool
+        echo "Importing ROM with stable-retro..."
+        python3.10 -m retro.import /workspace/SuperMarioWorld-Snes
+        
+        # Copy additional config files (data.json, scenario.json, metadata.json)
         RETRO_DATA=$(python3.10 -c "import retro; print(retro.data.path())")
         TARGET_DIR="${RETRO_DATA}/stable/SuperMarioWorld-Snes"
         
-        echo "Installing to: $TARGET_DIR"
-        
-        # Backup existing if present
         if [ -d "$TARGET_DIR" ]; then
-            echo "Backing up existing game data..."
-            mv "$TARGET_DIR" "${TARGET_DIR}.backup.$(date +%s)"
+            echo "Copying config files to: $TARGET_DIR"
+            cp -f /workspace/SuperMarioWorld-Snes/*.json "$TARGET_DIR/" 2>/dev/null || true
+            echo "ROM and config files installed!"
+        else
+            echo "WARNING: ROM import may have failed - target directory not created"
         fi
-        
-        # Copy custom game data
-        cp -r /workspace/SuperMarioWorld-Snes "$TARGET_DIR"
-        echo "ROM installed successfully!"
         
         # Verify installation
         echo "Verifying environment..."
@@ -134,7 +130,8 @@ env.close()
     fi
 else
     echo "No SuperMarioWorld-Snes folder found in /workspace"
-    echo "Upload your ROM folder and run: bash setup_rom.sh"
+    echo "Upload your ROM folder and run:"
+    echo "  python3.10 -m retro.import /workspace/SuperMarioWorld-Snes"
 fi
 
 # --- Summary ---
@@ -151,5 +148,5 @@ echo "Directories created:"
 echo "  - /workspace/evals"
 echo "  - /workspace/model_checkpoints"
 echo ""
-echo "Run 'source ~/.bashrc' or start a new shell to use aliases."
+echo "IMPORTANT: Use 'python3.10' to run scripts, or 'source ~/.bashrc' for aliases."
 echo "=========================================="

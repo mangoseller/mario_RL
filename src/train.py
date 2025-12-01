@@ -66,7 +66,7 @@ def train(model_class, config, curriculum_option=None,
     
     if curriculum:
         env, level_dist = make_env_for_curriculum(curriculum, config)
-        print(f"Curriculum stage {curriculum.stage}: {level_dist[:5]}...")
+        print(f"Curriculum initialized: {curriculum.describe(curriculum.stage)}")
     else:
         env = make_env(num_envs=config.num_envs)
     
@@ -79,7 +79,12 @@ def train(model_class, config, curriculum_option=None,
     print("Compiling model for training...")
 
     agent = t.compile(original_agent)
-    policy.model = agent # Compiled model and original model share same underlying memory 
+    policy.model = agent # Compiled model and original model share same underlying memory
+
+    entropy_boost = 1.0
+    BOOST_MAGNITUDE = 3.0
+    BOOST_DECAY = 0.0005
+
     for step in pbar:
 
         # Curriculum stage transition
@@ -93,13 +98,15 @@ def train(model_class, config, curriculum_option=None,
             tracking['current_episode_rewards'] = [0.0] * config.num_envs
             tracking['current_episode_lengths'] = [0] * config.num_envs
             print(f"\nCurriculum -> Stage {curriculum.stage}: {curriculum.describe(curriculum.stage)}")
+            
+            entropy_boost = BOOST_MAGNITUDE             
+            print(f"Curriculum Change: Entropy boosted to {entropy_boost}x")
         
-        # Entropy decay with boost for low-variance rewards
-        entropy = get_entropy(step, config.num_training_steps, max_entropy=config.c2)
-        recent = tracking['completed_rewards'][-40:]
-        if len(recent) >= 40 and np.std(recent) < 1.0 and np.mean(recent) < 150:
-            entropy *= 3
-        policy.c2 = entropy
+        base_entropy = get_entropy(step, config.num_training_steps, max_entropy=config.c2)
+        policy.c2 = base_entropy * entropy_boost
+        entropy_boost = max(1.0, entropy_boost - BOOST_DECAY)
+        
+
         
         # Step environment
         actions, log_probs, values = policy.action_selection(state)
