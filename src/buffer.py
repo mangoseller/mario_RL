@@ -28,6 +28,7 @@ class RolloutBuffer:
         self.log_probs[self.idx] = t.as_tensor(log_prob, device=self.device)
         self.values[self.idx] = t.as_tensor(value, device=self.device)
         self.dones[self.idx] = t.as_tensor(done, device=self.device)
+        self.idx += 1
 
     def get(self):
             if self.idx == 0:
@@ -44,35 +45,14 @@ class RolloutBuffer:
                     self.values[:self.idx],
                     self.dones[:self.idx]
                 ]))
+            
 
             return (state_tensor,) + others
-
-
-    def get(self):
-        # If the buffer is empty, raise an Exception
-        if self.idx == 0:
-            raise ValueError("Buffer is empty!")
-        
-        # Flatten buffers into 1d tensor for use on the GPU
-        prep_tensor = lambda buf: t.from_numpy(rearrange(buf[:self.idx], 'n ... -> (n ...)')).to(self.device) 
-
-        reward_tensor = prep_tensor(self.rewards)
-        action_tensor = prep_tensor(self.actions)
-        log_prob_tensor = prep_tensor(self.log_probs) 
-        value_tensor = prep_tensor(self.values) 
-        done_tensor = prep_tensor(self.dones)
-
-        """State tensor needs a different shape - batch time and num_envs together - 
-        Mixing states from different environments together and permuting the order in ppo.py gives us a 
-        a more accurate estimate of the policy gradient. Temporally ordered data would not be iid and so would give a
-        higher variance/less accurate estimate of this gradient. """
-        state_tensor = t.from_numpy(rearrange(self.states[:self.idx], 't n c h w -> (t n) c h w'))
-        return state_tensor, reward_tensor, action_tensor, log_prob_tensor, value_tensor, done_tensor
 
     def clear(self):
         self.idx = 0 # Will overwrite previous data
  
-    def __len__(self): # How much of the buffer is filled? 
+    def __len__(self): 
         return self.idx
 
     

@@ -89,6 +89,7 @@ ALL_LEVELS = [
 
 
 PROGRESSIVE_SCHEDULE = [
+    (0.05, {'YoshiIsland2': 1.0}),
     (0.15, {'YoshiIsland2': 0.5, 'VanillaDome5': 0.5}),
     (0.25, {'YoshiIsland2': 0.2, 'VanillaDome5': 0.8}),
     (0.30, {'YoshiIsland2': 0.1, 'VanillaDome5': 0.9}),
