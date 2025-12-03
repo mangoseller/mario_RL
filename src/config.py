@@ -7,7 +7,7 @@ class TrainingConfig:
     num_envs: int
     num_training_steps: int 
     eval_freq: int
-    show_progress: bool
+    show_progress: bool # Show a loading bar?
     architecture: str
 
     steps_per_env: int = 4096 # Number of rollout steps to collect per environment before PPO update
@@ -20,7 +20,7 @@ class TrainingConfig:
     c2: float = 0.01 # Entropy coefficient - encourages exploration by penalizing deterministic policies.
     epochs: int = 4 # Iterations the PPO update is performed for
     lr_schedule: str = 'constant'
-    min_lr: float = 1e-6 
+    min_lr: float = 1e-6 # Used if lr is decayed over training
     USE_WANDB: bool = False
     wandb_project: str = 'marioRL'
     use_curriculum: bool = False
@@ -29,9 +29,10 @@ class TrainingConfig:
     def buffer_size(self):
         return self.steps_per_env * self.num_envs
     
-    @property
+    @property 
     def minibatch_size(self):
         return max(32, self.buffer_size // 32)
+
     def to_wandb_config(self):
         return {
             "learning_rate": self.learning_rate,
@@ -68,7 +69,7 @@ class TrainingConfig:
     
 # Model configs
 
-TRANSPALA_TRAIN_CONFIG = TrainingConfig(
+IMPALAWIDE_TRAIN_CONFIG = TrainingConfig(
     architecture='TransPala',
     lr_schedule='linear',
     learning_rate=2.0e-4,
@@ -87,7 +88,7 @@ TRANSPALA_TRAIN_CONFIG = TrainingConfig(
     USE_WANDB=True
 )
 
-TRANSPALA_TUNE_CONFIG = TrainingConfig(
+IMPALAWIDE_TUNE_CONFIG = TrainingConfig(
     architecture='TransPala',
     lr_schedule='linear',
     learning_rate=2e-5,
@@ -106,7 +107,7 @@ TRANSPALA_TUNE_CONFIG = TrainingConfig(
     USE_WANDB=True
 )
 
-TRANSPALA_TEST_CONFIG = TrainingConfig(
+IMPALAWIDE_TEST_CONFIG = TrainingConfig(
     architecture='TransPala',
     lr_schedule='linear',
     learning_rate=1.5e-4,
@@ -179,11 +180,11 @@ IMPALA_TUNE_CONFIG = TrainingConfig(
 
 CONV_TRAIN_CONFIG = TrainingConfig(
     architecture="ConvolutionalSmall",
-    num_envs=12,
-    num_training_steps=2_000_000,
-    steps_per_env=256, 
-    eval_freq=250_000,
-    USE_WANDB=False,
+    num_envs=1,
+    num_training_steps=5_000_000,
+    steps_per_env=4096, 
+    eval_freq=500_000,
+    USE_WANDB=True,
     show_progress=True,
     learning_rate=2e-5,
     lr_schedule='linear'

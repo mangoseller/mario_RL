@@ -1,9 +1,9 @@
 import argparse
 from dataclasses import replace
-from models import ConvolutionalSmall, ImpalaLike, TransPala
+from models import ConvolutionalSmall, ImpalaLike, ImpalaWide
 from config import (
     IMPALA_TRAIN_CONFIG, IMPALA_TEST_CONFIG, IMPALA_TUNE_CONFIG,
-    TRANSPALA_TRAIN_CONFIG, TRANSPALA_TEST_CONFIG, TRANSPALA_TUNE_CONFIG,
+    IMPALAWIDE_TRAIN_CONFIG, IMPALAWIDE_TEST_CONFIG, IMPALAWIDE_TUNE_CONFIG,
     CONV_TRAIN_CONFIG, CONV_TEST_CONFIG, CONV_TUNE_CONFIG,
 )
 
@@ -12,12 +12,12 @@ from config import (
 MODELS = {
     'ConvolutionalSmall': (ConvolutionalSmall, CONV_TRAIN_CONFIG, CONV_TEST_CONFIG, CONV_TUNE_CONFIG),
     'ImpalaLike': (ImpalaLike, IMPALA_TRAIN_CONFIG, IMPALA_TEST_CONFIG, IMPALA_TUNE_CONFIG),
-    'TransPala': (TransPala, TRANSPALA_TRAIN_CONFIG, TRANSPALA_TEST_CONFIG, TRANSPALA_TUNE_CONFIG),
+    'ImpalaWide': (ImpalaWide, IMPALAWIDE_TRAIN_CONFIG, IMPALAWIDE_TEST_CONFIG, IMPALAWIDE_TUNE_CONFIG),
 }
 
 MODELS['1'] = MODELS['ConvolutionalSmall']
 MODELS['2'] = MODELS['ImpalaLike']
-MODELS['3'] = MODELS['TransPala']
+MODELS['3'] = MODELS['ImpalaWide']
 
 
 def prompt_choice(prompt, valid_options, allow_exit=True):
@@ -34,7 +34,7 @@ def select_model():
     print("\n" + "="*50)
     print("MODEL SELECTION")
     print("="*50)
-    for i, name in enumerate(['ConvolutionalSmall', 'ImpalaLike', 'TransPala'], 1):
+    for i, name in enumerate(['ConvolutionalSmall', 'ImpalaLike', 'ImpalaWide'], 1):
         print(f"  {i}. {name}")
     
     choice = prompt_choice("Select (1/2/3 or name, 'exit' to quit): ", MODELS.keys())

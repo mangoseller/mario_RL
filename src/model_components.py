@@ -44,7 +44,9 @@ class ResidualBlock(nn.Module):
         super().__init__()
         self.conv1 = nn.Conv2d(channels, channels, kernel_size=3, padding=dilation, dilation=dilation)
         self.conv2 = nn.Conv2d(channels, channels, kernel_size=3, padding=1)
-        self.gn1 = nn.GroupNorm(8, channels) # GroupNorm is more accurate and stable than batch norm for small batches
+        # GroupNorm is more accurate and stable than batch norm for small batches
+        # Divides data into (8) groups and computes statistics and normalizes for each group
+        self.gn1 = nn.GroupNorm(8, channels)
         self.gn2 = nn.GroupNorm(8, channels)
 
     def forward(self, x):
@@ -89,6 +91,7 @@ class SpatialSoftmax(nn.Module):
         probs = F.softmax(x, dim=-1)
         
         # Compute expected value of coord - (sum of prob * coord)
+        # For each batch and channel, sum over pos 
         get_expected_value = lambda coord: einsum(probs, coord, 'b c pos, pos -> b c')
 
         expected_x = get_expected_value(self.x_grid)
@@ -127,12 +130,14 @@ class PixelControlHead(nn.Module):
         x = rearrange(x, 'b (c h w) -> b c h w', c=self.channels, h=self.grid_size)
         x = self.spatial(x)
 
-        # Remove channel dim
+        # Remove channel dim, since we predict only the change in pixel magnitude for each position, which is a real number
         return rearrange(x, 'b 1 h w -> b h w')
 
 
 class RandomShifts(nn.Module):
-    # Data augmentation, but carefully so as to not corrupt the state fundamentally 
+    """For each image in the batch, generate one random shift value. Apply that same shift uniformly to all pixel coordinates. 
+    This shifts the entire frame by a random offset."""
+
     def __init__(self, pad=4):
         super().__init__()
         self.pad = pad

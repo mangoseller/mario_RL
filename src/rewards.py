@@ -8,7 +8,7 @@ REWARD_CONFIG = {
     'life_loss_penalty': 8.0,
     'max_steps_penalty': 15.0,
     'coin_reward': 0.3,
-    'score_reward': 0.005,
+    'score_reward': 0.009,
     'midway_reward': 25.0,
     'level_complete_reward': 60.0,
 }

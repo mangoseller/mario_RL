@@ -21,7 +21,7 @@ from torchvision.transforms import InterpolationMode
 from curriculum import assign_levels
 from utils import readable_timestamp
 
-MARIO_ACTIONS = [ # Move to wrappers
+MARIO_ACTIONS = [
     [],                   # Do nothing
     ['RIGHT'],            # Walk right
     ['RIGHT', 'Y'],       # Run right  
@@ -45,13 +45,12 @@ class MockRetro(gym.Env):
     environment specs before spawning workers to create the different envs. The underlying emulator, gym-retro,
     is not thread-safe however: attempting to spawn workers/additional environments after calling retro.make in the main
     environment throws a fatal 1 env per process error. To work around this, in the main process we call this mock which matches
-    the actual api of our environment, but does not actually call retro.make. In the subprocesses, we are then safe to call retro.make
-    and create our environments as needed."""
+    the actual api of our environment, but does not actually call retro.make. In the subprocesses where the ParallelEnvs are actually,
+    spawned we are then safe to call retro.make and create our environments as needed."""
 
-    observation_space = gym.spaces.Box(0, 255, (224, 256, 3), np.uint8)
-    action_space = gym.spaces.MultiBinary(12)
-    buttons = ['B', 'Y', 'SELECT', 'START', 'UP', 'DOWN', 'LEFT', 'RIGHT', 'A', 'X', 'L', 'R']
-    
+    observation_space = gym.spaces.Box(0, 1, (4, 84, 84), np.float32)
+    action_space = gym.spaces.Discrete(14)
+
     def reset(self, **_): return self.observation_space.sample(), {}
     def step(self, _): return self.observation_space.sample(), 0.0, False, False, {}
     def render(self): pass
@@ -78,13 +77,11 @@ def _wrap_env(env, skip=4, record=False, record_dir=None):
         Resize(84, 84, interpolation=InterpolationMode.NEAREST),
         GrayScale(),
         CatFrames(N=4, dim=-3),
-        StepCounter(),
-        RewardSum(),
     ]))
 
 
 
-def make_env( # Does this mean we have num_envs - 1 envs? 
+def make_env(
     num_envs = 1,
     level_weights = None,
     level_distribution = None,
@@ -97,7 +94,7 @@ def make_env( # Does this mean we have num_envs - 1 envs?
     if num_envs == 1:
         env = retro.make(
             'SuperMarioWorld-Snes',
-            state='Bridges2',
+            state=dist[0],
             render_mode='human', # Enables window if running locally
         )
         env = _wrap_env(env, skip=frame_skip, record=record, record_dir=record_dir)
@@ -115,6 +112,7 @@ def make_env( # Does this mean we have num_envs - 1 envs?
 
         def _create_parallel_worker(level):
             if multiprocessing.current_process().name == 'MainProcess':
+    # The initial python process when train.py is called is 'MainProccess' - we return a mock in this case
                 raw_env = MockRetro()
             else:
                 raw_env = retro.make(
@@ -138,7 +136,7 @@ def make_eval_env(level, record_dir = None):
             state=level,
             render_mode='rgb_array',
         ),
-        record=record_dir is not None,
+        record=record_dir is not None, # We should record if passed a record_dir
         record_dir=record_dir,
     )
 
@@ -156,7 +154,7 @@ def get_level_distribution(level_distribution, level_weights, num_envs):
         return level_distribution
     elif level_weights is not None:
         return assign_levels(num_envs, level_weights)
-    else:
+    else: # Reasonable defaults for testing
         return assign_levels(num_envs, {
     'YoshiIsland2': 0.5,
     'YoshiIsland3': 0.5,

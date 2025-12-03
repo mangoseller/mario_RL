@@ -8,7 +8,7 @@ class PPO:
         self.model = model
         self.config = config
         self.device = device
-        self.optimizer = t.optim.Adam(model.parameters(), lr=config.learning_rate, eps=1e-5) # What is this eps?
+        self.optimizer = t.optim.Adam(model.parameters(), lr=config.learning_rate, eps=1e-5) 
         self.eps = config.clip_eps
         self.c1 = config.c1
         self.c2 = config.c2    
@@ -39,7 +39,7 @@ class PPO:
     def action_selection(self, states):
 
         states = states.to(self.device)
-        state_logits, value = self.model(states) # Estimation of future reward from the current state
+        state_logits, value = self.model(states) 
         distributions = Categorical(logits=state_logits)
         actions = distributions.sample()
         log_probs = distributions.log_prob(actions)
@@ -60,7 +60,7 @@ class PPO:
             pixel_targets = pixel_targets.to(self.device)
         else:
             logits, values = self.model(states)
-        # Be able to explain on-policy gradient methods better
+     
         distributions = Categorical(logits=logits)
         new_log_probs = distributions.log_prob(actions) # How likely is the action we took before under the new policy?
 
@@ -89,7 +89,7 @@ class PPO:
         else:
             pixel_control_loss = t.tensor(0.0, device=self.device)
 
-        # C1 controls how much the shared weights 'care' about the value head, vs the action head, c2 controls how determinsitic the model is
+        # C1 controls how much the shared weights 'care' about the value head, vs the action head, c2 controls how deterministic the model is
         total_loss = (policy_loss + 
                      (self.c1 * value_loss) + 
                      (self.c2 * -entropy_loss) +
@@ -317,6 +317,7 @@ class PPO:
                 key: np.mean([d[key] for d in all_diagnostics])
                 for key in all_diagnostics[0].keys()
             }
+            self.eval() # Disable data augmentation for rollout collection again
             return averaged_diagnostics
     
     def get_current_lr(self):

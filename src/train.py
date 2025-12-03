@@ -84,6 +84,7 @@ def train(model_class, config, curriculum_option=None,
     entropy_boost = 1.0
     BOOST_MAGNITUDE = 3.0
     BOOST_DECAY = 0.0005
+    policy.model.eval()
 
     for step in pbar:
 
@@ -156,7 +157,7 @@ def train(model_class, config, curriculum_option=None,
             reset_td["_reset"] = dones.clone()
             # Reset finished environments
             reset_out = env.reset(reset_td.to('cpu')).to(state.device)
-            # Reshape dones (batch, 1) -> (batch, 1, 1, 1) to match the shape of the envs and allow broadcasting
+            # Reshape dones (batch, 1) -> (batch, 1, 1, 1) to match the shape of the envs 
             mask = rearrange(dones, 'b c -> b c 1 1')
             # Apply the mask, reset completed environments
             state = t.where(mask, reset_out["pixels"], next_state)

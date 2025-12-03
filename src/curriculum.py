@@ -25,15 +25,13 @@ class Curriculum:
     
     def update(self, step, total_steps):
     # Advance to next stage if needed
-        if total_steps == 0:
-            return False
-        
         progress = step / total_steps
         new_stage = next(
             (i for i, (end, _) in enumerate(self.schedule) if progress < end),
             len(self.schedule) - 1
         ) # Give the first item we haven't progressed past, or the final item
-        
+          # len(self.schedule) - 1 is the default value for next if the iterator is exhausted
+
         if new_stage != self.stage:
             self.stage = new_stage
             return True
@@ -105,14 +103,14 @@ GRADUAL_SCHEDULE = [
 
 SEQUENTIAL_SCHEDULE = [
     (0.05, {'YoshiIsland2': 1.0}),     
-    (0.25, {'DonutPlains2': 1.0}),      
+    (0.25, {'Bridges2': 1.0}),      
     (0.28, {'YoshiIsland2': 1.0}),      
     (0.58, {'VanillaDome5': 1.0}),      
     (0.61, {'YoshiIsland2': 1.0}),      
-    (0.65, {'DonutPlains2': 1.0}),      
+    (0.65, {'Bridges2': 1.0}),      
     (0.85, {'ChocolateIsland3': 1.0}),  
     (0.87, {'YoshiIsland2': 1.0}),      
-    (0.90, {'DonutPlains2': 1.0}),     
+    (0.90, {'Bridges2': 1.0}),     
     (1.00, {'ChocolateIsland3': 1.0}),  
 ]
 

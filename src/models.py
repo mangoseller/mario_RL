@@ -9,7 +9,7 @@ from model_components import (
     PixelControlHead
 )
 
-class TransPala(nn.Module): # TODO Give these less stupid names
+class ImpalaWide(nn.Module):
     """Wider, more spatial awareness, pixel_control SSL.
     ~3.8 Million Parameters"""
 
@@ -81,6 +81,8 @@ class TransPala(nn.Module): # TODO Give these less stupid names
         return policy, value
 
     def _init_weights(self):
+        """Orthogonal init preserves norms to help mitigate vanishing/exploding gradients,
+        gain is set to 0.01 for the policy head - near-uniform probalility over actions encourages early exploration"""
 
         for m in self.modules():
             if isinstance(m, (nn.Conv2d, nn.Linear)):
@@ -194,7 +196,6 @@ class ConvolutionalSmall(nn.Module):
         return self.policy_head(x), self.value_head(x)
 
     def _initialize_weights(self): 
-
         for layer in [self.conv1, self.conv2]:
             nn.init.orthogonal_(layer.weight, gain=np.sqrt(2))
             if layer.bias is not None:
