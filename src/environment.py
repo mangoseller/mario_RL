@@ -129,7 +129,6 @@ def make_env(
         )
 
 def make_eval_env(level, record_dir = None):
-
     env = _wrap_env(
         retro.make(
             'SuperMarioWorld-Snes',
