@@ -60,7 +60,6 @@ class ImpalaWide(nn.Module):
         self._init_weights()
 
     def forward(self, x, return_pixel_control=False):
-
         x = self.aug(x)
         x = self.coord_conv(x)
         
