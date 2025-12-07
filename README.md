@@ -1,1 +1,8 @@
-PPO RL applied to Super Mario World. See the agent play [here](https://www.youtube.com/watch?v=MiSON1-X_2s):
+# PPO RL for Super Mario World
+
+Custom PyTorch implementation of Proximal Policy Optimization applied to Super Mario World. Features curriculum learning across multiple levels, auxiliary pixel prediction task for improved spatial reasoning, and custom reward shaping. 
+
+
+Trained from scratch using ~1-4M parameters across several architectures.
+
+**[Watch the trained agent play](https://www.youtube.com/watch?v=MiSON1-X_2s)**
