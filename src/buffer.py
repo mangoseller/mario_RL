@@ -46,8 +46,7 @@ class RolloutBuffer:
                     self.values[:self.idx],
                     self.dones[:self.idx]
                 ]))
-            
-
+        
             return (state_tensor,) + others
 
     def clear(self):
