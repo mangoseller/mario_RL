@@ -1,6 +1,6 @@
 # PPO RL for Super Mario World
 
-Custom PyTorch implementation of Proximal Policy Optimization applied to Super Mario World. Features curriculum learning across multiple levels, auxiliary pixel prediction task for improved spatial reasoning, and custom reward shaping. 
+PyTorch implementation of Proximal Policy Optimization applied to Super Mario World. Features curriculum learning across multiple levels, auxiliary pixel prediction task for improved spatial reasoning, and custom reward shaping. 
 
 
 Trained from scratch using ~1-4M parameters across several actor-critic style architectures.
